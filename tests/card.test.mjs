@@ -322,4 +322,93 @@ test("icon-only buttons keep an accessible name", () => {
   }
 });
 
+console.log("theme tokens");
+
+const styleOf = (el) => el.querySelector("style").textContent;
+
+test("no hardcoded colours in either stylesheet", () => {
+  const card = styleOf(render([{ name: "W", values: [1] }]));
+  const ed = styleOf(editor({ banks: [{ name: "W", entities: ["a"] }] }).el);
+  for (const [name, css] of [["card", card], ["editor", ed]]) {
+    const hex = css.match(/#[0-9a-fA-F]{3,8}\b/g);
+    assert.equal(hex, null, `${name} stylesheet has literal colours: ${hex}`);
+    // rgb()/hsl() literals are equally hardcoded, bar the one neutral hover wash.
+    const fn = (css.match(/\b(rgb|hsl)a?\([^)]*\)/g) || [])
+      .filter((v) => !v.startsWith("rgba(127,127,127"));
+    assert.deepEqual(fn, [], `${name} stylesheet has literal colours: ${fn}`);
+  }
+});
+
+test("every colour resolves through a theme variable", () => {
+  const css = styleOf(render([{ name: "W", values: [1] }]));
+  for (const decl of css.match(/(?:^|[\s;{])(?:color|background)\s*:[^;}]+/g) || []) {
+    assert.match(decl, /var\(--/, `not themed: ${decl.trim()}`);
+  }
+});
+
+test("font sizes and radii come from HA tokens, with literals only as fallbacks", () => {
+  for (const css of [styleOf(render([{ name: "W", values: [1] }])),
+                     styleOf(editor({ banks: [{ name: "W", entities: ["a"] }] }).el)]) {
+    for (const decl of css.match(/font-size\s*:[^;}]+/g) || []) {
+      assert.match(decl, /var\(--ha-font-size/, `not tokenised: ${decl.trim()}`);
+    }
+    for (const decl of css.match(/font-weight\s*:[^;}]+/g) || []) {
+      assert.match(decl, /var\(--ha-font-weight/, `not tokenised: ${decl.trim()}`);
+    }
+    for (const decl of css.match(/border-radius\s*:[^;}]+/g) || []) {
+      assert.match(decl, /var\(--ha-border-radius/, `not tokenised: ${decl.trim()}`);
+    }
+  }
+});
+
+console.log("ha components");
+
+// Minimal stand-ins for the frontend's elements. Registering them switches the
+// editor onto its preferred path, so this group runs last.
+for (const tag of ["ha-textfield", "ha-switch", "ha-formfield", "ha-icon-button", "ha-button"]) {
+  window.customElements.define(tag, class extends window.HTMLElement {});
+}
+
+test("text and number fields use ha-textfield", () => {
+  const { el } = editor({ banks: [{ name: "W", entities: ["sensor.a"] }] });
+  assert.ok(q(el, "ha-textfield").length >= 5, "expected ha-textfield for title, numbers, bank, panel");
+  assert.equal(q(el, "input[type=text]").length, 0, "native text input survived");
+  assert.equal(q(el, "input[type=number]").length, 0, "native number input survived");
+});
+
+test("editing an ha-textfield still emits the config", () => {
+  const { el, last } = editor({ banks: [{ name: "W", entities: [""] }] });
+  const panel = q(el, ".panels ha-textfield")[0];
+  panel.value = "sensor.inverter_1_west";
+  panel.dispatchEvent(new window.Event("input"));
+  assert.deepEqual(last().banks[0].entities, ["sensor.inverter_1_west"]);
+});
+
+test("the boolean uses ha-switch inside ha-formfield", () => {
+  const { el, last } = editor({ banks: [{ name: "W", entities: [] }] });
+  const sw = el.querySelector("ha-formfield ha-switch");
+  assert.ok(sw, "expected ha-switch");
+  assert.equal(q(el, "input[type=checkbox]").length, 0, "native checkbox survived");
+  sw.checked = false;
+  sw.dispatchEvent(new window.Event("change"));
+  assert.equal(last().show_values, false);
+});
+
+test("icon buttons become ha-icon-button and still act", () => {
+  const { el, last } = editor({ banks: [{ name: "W", entities: ["a", "b"] }] });
+  const remove = q(el, "ha-icon-button[data-action=panel-remove]");
+  assert.equal(remove.length, 2);
+  assert.equal(el.querySelector("button.icon"), null, "native icon button survived");
+  remove[0].dispatchEvent(new window.Event("click"));
+  assert.deepEqual(last().banks[0].entities, ["b"]);
+});
+
+test("add buttons become ha-button and still act", () => {
+  const { el, last } = editor({ banks: [] });
+  const add = el.querySelector("ha-button[data-action=add-bank]");
+  assert.ok(add, "expected ha-button");
+  add.dispatchEvent(new window.Event("click"));
+  assert.equal(last().banks.length, 1);
+});
+
 console.log(`\n${passed} passed`);

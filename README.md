@@ -10,6 +10,17 @@ Dependency-free plain custom element — no Lit, no CDN, no build step.
 
 ## Install
 
+### HACS (recommended)
+
+1. HACS → **⋮** → **Custom repositories**.
+2. Add `https://github.com/dgaust/solar-bank-card` with type **Dashboard**.
+3. Install **Solar Bank Card**, then reload your browser.
+
+HACS adds the Lovelace resource for you. Updates then show up in HACS like any
+other card.
+
+### Manual
+
 1. Copy `solar-bank-card.js` into your Home Assistant `config/www/` folder.
 2. Add it as a Lovelace resource: **Settings → Dashboards → ⋮ → Resources →
    Add resource**, URL `/local/solar-bank-card.js`, type **JavaScript Module**.

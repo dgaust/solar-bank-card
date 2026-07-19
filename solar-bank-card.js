@@ -9,7 +9,7 @@
  * Dependency-free plain custom element - no Lit, no build step.
  */
 
-const CARD_VERSION = "1.6.0";
+const CARD_VERSION = "1.7.0";
 console.info(`%c SOLAR-BANK-CARD ${CARD_VERSION} `, "background:#f6a800;color:#000");
 
 const DEFAULT_MAX = 300; // W per panel at full output
@@ -122,16 +122,21 @@ class SolarBankCard extends HTMLElement {
          part allowed to ellipsize. */
       .bank-head {
         display: flex; align-items: baseline; gap: 8px; flex-wrap: nowrap;
-        font-size: 14px; color: var(--secondary-text-color);
+        font-family: var(--ha-font-family-body, inherit);
+        font-size: var(--ha-font-size-m, 14px);
+        color: var(--secondary-text-color);
       }
       .bank-name {
-        font-weight: 500; color: var(--primary-text-color);
+        font-weight: var(--ha-font-weight-medium, 500);
+        color: var(--primary-text-color);
         white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
       }
       .bank-total { margin-left: auto; font-variant-numeric: tabular-nums;
-                    color: var(--primary-text-color); font-weight: 500;
+                    color: var(--primary-text-color);
+                    font-weight: var(--ha-font-weight-medium, 500);
                     white-space: nowrap; flex: 0 0 auto; }
-      .bank-count { font-size: 12px; white-space: nowrap; min-width: 0;
+      .bank-count { font-size: var(--ha-font-size-s, 12px);
+                    white-space: nowrap; min-width: 0;
                     overflow: hidden; text-overflow: ellipsis; }
       /* Exactly one row per bank, always. Every bank gets the widest bank's
          column count (set inline) so cells are the same size in every row and
@@ -141,12 +146,14 @@ class SolarBankCard extends HTMLElement {
          edge where the bank total sits. */
       .grid { display: grid; gap: 4px; margin-top: 6px; }
       .cell {
-        position: relative; aspect-ratio: 1; border-radius: 4px; cursor: pointer;
+        position: relative; aspect-ratio: 1; cursor: pointer;
+        border-radius: var(--ha-border-radius-sm, 4px);
         background: var(--divider-color);
         transition: background-color 240ms ease-out;
       }
       .cell .fill {
-        position: absolute; inset: 0; border-radius: 4px;
+        position: absolute; inset: 0;
+        border-radius: var(--ha-border-radius-sm, 4px);
         background: var(--state-icon-active-color, var(--primary-color));
         opacity: 0; transition: opacity 240ms ease-out;
       }
@@ -157,13 +164,15 @@ class SolarBankCard extends HTMLElement {
       .val {
         position: absolute; inset: 0; pointer-events: none;
         display: flex; align-items: center; justify-content: center;
-        font-size: 12px; font-weight: 500; line-height: 1;
-        font-variant-numeric: tabular-nums;
+        font-family: var(--ha-font-family-body, inherit);
+        font-size: var(--ha-font-size-s, 12px);
+        font-weight: var(--ha-font-weight-medium, 500);
+        line-height: 1; font-variant-numeric: tabular-nums;
         color: var(--primary-text-color);
       }
       /* A filled cell is a saturated block, so the label has to flip to the
          theme's on-accent colour or it disappears into the fill. */
-      .cell.hot .val { color: var(--text-primary-color, #fff); }
+      .cell.hot .val { color: var(--text-primary-color); }
       /* Below roughly 28px a three-digit number stops being legible and starts
          being noise; the hover text still has it. */
       .grid.tight .val { display: none; }
@@ -396,16 +405,30 @@ class SolarBankCardEditor extends HTMLElement {
 
     const style = document.createElement("style");
     style.textContent = `
-      .ed { display: flex; flex-direction: column; gap: 18px; padding: 4px 0; }
-      .grp { display: flex; flex-direction: column; gap: 10px; }
+      /* Sizes, weights and radii come from Home Assistant's design tokens, with
+         a literal only as the fallback for frontends that predate them. */
+      .ed { display: flex; flex-direction: column; gap: 24px; padding: 4px 0; }
+      .grp { display: flex; flex-direction: column; gap: 12px; }
       .grp > h4 {
-        margin: 0; font-size: 13px; font-weight: 500; text-transform: uppercase;
-        letter-spacing: .04em; color: var(--secondary-text-color);
+        margin: 0;
+        font-family: var(--ha-font-family-body, inherit);
+        font-size: var(--ha-font-size-s, 13px);
+        font-weight: var(--ha-font-weight-medium, 500);
+        color: var(--secondary-text-color);
       }
       .row { display: flex; align-items: center; gap: 8px; }
-      .row > label { flex: 1 1 auto; font-size: 14px; color: var(--primary-text-color); }
+      .row > label {
+        flex: 1 1 auto;
+        font-size: var(--ha-font-size-m, 14px);
+        color: var(--primary-text-color);
+      }
+      .field { display: block; width: 100%; }
+      .grow { flex: 1 1 auto; min-width: 0; }
+      /* Native fallbacks only - used when ha-textfield isn't registered. */
       input[type=text], input[type=number] {
-        font: inherit; font-size: 14px; padding: 8px 10px; border-radius: 6px;
+        font: inherit; font-size: var(--ha-font-size-m, 14px);
+        padding: 8px 10px;
+        border-radius: var(--ha-border-radius-sm, 6px);
         background: var(--secondary-background-color, transparent);
         color: var(--primary-text-color);
         border: 1px solid var(--divider-color);
@@ -414,24 +437,30 @@ class SolarBankCardEditor extends HTMLElement {
       input.num { width: 96px; flex: 0 0 auto; text-align: right; }
       input.grow { flex: 1 1 auto; min-width: 0; }
       .bank {
-        border: 1px solid var(--divider-color); border-radius: 8px;
-        padding: 10px; display: flex; flex-direction: column; gap: 8px;
+        border: 1px solid var(--divider-color);
+        border-radius: var(--ha-border-radius-md, 8px);
+        padding: 12px; display: flex; flex-direction: column; gap: 10px;
       }
-      .panels { display: flex; flex-direction: column; gap: 6px; }
+      .panels { display: flex; flex-direction: column; gap: 8px; }
       .btn {
-        font: inherit; font-size: 13px; cursor: pointer; border-radius: 6px;
-        background: transparent; color: var(--primary-text-color);
+        font: inherit; font-size: var(--ha-font-size-s, 13px); cursor: pointer;
+        border-radius: var(--ha-border-radius-sm, 6px);
+        background: transparent; color: var(--primary-color);
         border: 1px solid var(--divider-color); padding: 6px 10px;
         display: inline-flex; align-items: center; justify-content: center; gap: 6px;
       }
       .btn:hover { background: var(--secondary-background-color, rgba(127,127,127,.12)); }
-      /* ha-icon sizes from --mdc-icon-size; the editor's buttons want it
-         smaller than the frontend's 24px default. */
-      .btn ha-icon { --mdc-icon-size: 18px; width: 18px; height: 18px; }
       .btn.icon { padding: 6px; flex: 0 0 auto; line-height: 1; }
-      .btn.danger { color: var(--error-color); }
       .btn:disabled { opacity: .35; cursor: default; }
-      .hint { font-size: 12px; color: var(--secondary-text-color); margin: 0; }
+      /* Icon size is the frontend's own knob; ha-icon-button reads it too. */
+      .btn ha-icon { --mdc-icon-size: 20px; width: 20px; height: 20px; }
+      ha-icon-button { --mdc-icon-button-size: 36px; --mdc-icon-size: 20px; }
+      .danger { color: var(--error-color); --icon-primary-color: var(--error-color); }
+      ha-button, mwc-button { --mdc-typography-button-text-transform: none; }
+      .hint {
+        font-size: var(--ha-font-size-s, 12px);
+        color: var(--secondary-text-color); margin: 0;
+      }
     `;
 
     const ed = document.createElement("div");
@@ -503,15 +532,11 @@ class SolarBankCardEditor extends HTMLElement {
 
     const head = document.createElement("div");
     head.className = "row";
-    const name = document.createElement("input");
-    name.type = "text";
-    name.className = "grow";
-    name.placeholder = "Bank name";
-    name.value = bank.name || "";
-    name.addEventListener("input", () => {
-      bank.name = name.value;
+    const name = this._textRow("Bank name", bank.name || "", (v) => {
+      bank.name = v;
       this._emit();
-    });
+    }, { placeholder: "Bank name" });
+    name.classList.add("grow");
     head.append(
       name,
       this._iconButton("Move bank up", "mdi:arrow-up", "↑", bi > 0,
@@ -530,16 +555,11 @@ class SolarBankCardEditor extends HTMLElement {
     entities.forEach((id, pi) => {
       const row = document.createElement("div");
       row.className = "row";
-      const input = document.createElement("input");
-      input.type = "text";
-      input.className = "grow";
-      input.setAttribute("list", this._listId);
-      input.placeholder = "sensor.inverter_…";
-      input.value = id;
-      input.addEventListener("input", () => {
-        entities[pi] = input.value.trim();
+      const input = this._textRow(`Panel ${pi + 1}`, id, (v) => {
+        entities[pi] = v;
         this._emit();
-      });
+      }, { placeholder: "sensor.inverter_…", listId: this._listId });
+      input.classList.add("grow");
       row.append(
         input,
         this._iconButton("Move panel up", "mdi:arrow-up", "↑", pi > 0,
@@ -588,7 +608,30 @@ class SolarBankCardEditor extends HTMLElement {
     return g;
   }
 
-  _textRow(label, value, onInput) {
+  /**
+   * Home Assistant's own form elements when they are registered, native ones
+   * when they are not. ha-textfield and ha-switch come from the frontend's
+   * component set and are usually present by the time a card editor opens, but
+   * "usually" isn't "always" - an editor reached by an unusual route can render
+   * before they load, and an unresolved custom element is an invisible box.
+   * Falling back keeps the editor usable in that case rather than blank.
+   */
+  _field(tag) {
+    return customElements.get(tag) ? document.createElement(tag) : null;
+  }
+
+  _textRow(label, value, onInput, { placeholder = "", listId = null } = {}) {
+    const ha = this._field("ha-textfield");
+    if (ha) {
+      ha.classList.add("field");
+      ha.label = label;
+      ha.value = value;
+      if (placeholder) ha.placeholder = placeholder;
+      // ha-textfield wraps an input; the datalist has to reach it directly.
+      if (listId) ha.setAttribute("list", listId);
+      ha.addEventListener("input", () => onInput(ha.value.trim()));
+      return ha;
+    }
     const row = document.createElement("div");
     row.className = "row";
     const l = document.createElement("label");
@@ -597,12 +640,26 @@ class SolarBankCardEditor extends HTMLElement {
     i.type = "text";
     i.className = "grow";
     i.value = value;
+    if (placeholder) i.placeholder = placeholder;
+    if (listId) i.setAttribute("list", listId);
     i.addEventListener("input", () => onInput(i.value.trim()));
     row.append(l, i);
     return row;
   }
 
   _numRow(label, value, placeholder, onInput) {
+    const shown = value === undefined || value === null ? "" : String(value);
+    const ha = this._field("ha-textfield");
+    if (ha) {
+      ha.classList.add("field");
+      ha.label = label;
+      ha.type = "number";
+      ha.min = 0;
+      ha.value = shown;
+      ha.helper = `Default ${placeholder}`;
+      ha.addEventListener("input", () => onInput(ha.value));
+      return ha;
+    }
     const row = document.createElement("div");
     row.className = "row";
     const l = document.createElement("label");
@@ -612,13 +669,23 @@ class SolarBankCardEditor extends HTMLElement {
     i.min = "0";
     i.className = "num";
     i.placeholder = String(placeholder);
-    i.value = value === undefined || value === null ? "" : String(value);
+    i.value = shown;
     i.addEventListener("input", () => onInput(i.value));
     row.append(l, i);
     return row;
   }
 
   _checkRow(label, checked, onChange) {
+    const sw = this._field("ha-switch");
+    const wrap = this._field("ha-formfield");
+    if (sw && wrap) {
+      sw.checked = checked;
+      sw.addEventListener("change", () => onChange(sw.checked));
+      wrap.label = label;
+      wrap.appendChild(sw);
+      wrap.classList.add("field");
+      return wrap;
+    }
     const row = document.createElement("div");
     row.className = "row";
     const l = document.createElement("label");
@@ -650,6 +717,16 @@ class SolarBankCardEditor extends HTMLElement {
   }
 
   _button(label, icon, fallback, onClick, action) {
+    const ha = this._field("ha-button") || this._field("mwc-button");
+    if (ha) {
+      ha.dataset.action = action;
+      ha.label = label;
+      const glyph = this._icon(icon, fallback);
+      glyph.slot = "icon";
+      ha.appendChild(glyph);
+      ha.addEventListener("click", onClick);
+      return ha;
+    }
     const b = document.createElement("button");
     b.className = "btn";
     b.type = "button";
@@ -662,8 +739,18 @@ class SolarBankCardEditor extends HTMLElement {
     return b;
   }
 
-  /** Icon-only, so the label becomes the accessible name instead. */
+  /** Icon-only, so the label carries the accessible name instead of the glyph. */
   _iconButton(label, icon, fallback, enabled, onClick, action, danger = false) {
+    const ha = this._field("ha-icon-button");
+    if (ha) {
+      ha.dataset.action = action;
+      ha.label = label;
+      ha.disabled = !enabled;
+      if (danger) ha.classList.add("danger");
+      ha.appendChild(this._icon(icon, fallback));
+      ha.addEventListener("click", onClick);
+      return ha;
+    }
     const b = document.createElement("button");
     b.className = "btn icon";
     b.type = "button";

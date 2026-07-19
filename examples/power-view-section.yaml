@@ -1,9 +1,12 @@
-# Drop-in "Solar Generation" block for the Power view.
+# Two banks of nine panels, the way a split east/west roof usually ends up.
 #
 # A vertical-stack is used rather than a sections grid: in a sections view the
-# card is handed a narrow column and the panels collapse to slivers, and the
+# card can be handed a narrow column and the panels collapse to slivers, and the
 # heading lands beside the card instead of above it. The stack gives the card
 # the full width without any grid_options fiddling.
+#
+# Replace the entity ids with your own. Listing them in the order the panels sit
+# on the roof makes the grid a rough map of the array.
 type: vertical-stack
 cards:
   - type: heading
@@ -13,23 +16,23 @@ cards:
     banks:
       - name: West
         entities:
-          - sensor.inverter_122016007611_west
-          - sensor.inverter_122016007612_west
-          - sensor.inverter_122016007609_west
-          - sensor.inverter_122016009980_west
-          - sensor.inverter_122016009650_west
-          - sensor.inverter_122016010683_west
-          - sensor.inverter_122016010704_west
-          - sensor.inverter_122016012044_west
-          - sensor.inverter_122016012087_west
+          - sensor.inverter_000000000001_west
+          - sensor.inverter_000000000002_west
+          - sensor.inverter_000000000003_west
+          - sensor.inverter_000000000004_west
+          - sensor.inverter_000000000005_west
+          - sensor.inverter_000000000006_west
+          - sensor.inverter_000000000007_west
+          - sensor.inverter_000000000008_west
+          - sensor.inverter_000000000009_west
       - name: East
         entities:
-          - sensor.inverter_122016006491_east
-          - sensor.inverter_122016007555_east
-          - sensor.inverter_122016010613_east
-          - sensor.inverter_122016010678_east
-          - sensor.inverter_122016010681_east
-          - sensor.inverter_122016011089_east
-          - sensor.inverter_122016012045_east
-          - sensor.inverter_122016012047_east
-          - sensor.inverter_122016012072_east
+          - sensor.inverter_000000000010_east
+          - sensor.inverter_000000000011_east
+          - sensor.inverter_000000000012_east
+          - sensor.inverter_000000000013_east
+          - sensor.inverter_000000000014_east
+          - sensor.inverter_000000000015_east
+          - sensor.inverter_000000000016_east
+          - sensor.inverter_000000000017_east
+          - sensor.inverter_000000000018_east
