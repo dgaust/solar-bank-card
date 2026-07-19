@@ -34,8 +34,12 @@ form: add and name banks, add panels to them, reorder either with the arrows,
 and set every option below. The YAML underneath stays minimal — an option left
 at its default isn't written out.
 
-Entity fields are type-to-filter, listing the `sensor` entities measured in W or
-kW. Anything else can still be typed in by hand.
+Panels are chosen with Home Assistant's own entity picker — search by friendly
+name, with icons and keyboard support like any other entity field. It lists
+`sensor` entities with `device_class: power`, which is what a microinverter
+reports, so the dropdown holds the handful of plausible entities rather than
+every number in the house. An entity id can still be typed in by hand if a panel's
+sensor lacks the device class.
 
 ```yaml
 type: custom:solar-bank-card
@@ -124,13 +128,16 @@ typically arrive with no area or device grouping, and serial number ranges don't
 reliably follow roof faces. Assigning them is a manual job however you configure
 the card.
 
-Icons are `ha-icon` with MDI names, matching the rest of Home Assistant. Text
-inputs are native rather than `ha-entity-picker` and friends: those are only
-defined once something else in the frontend has pulled them in, so a card
-reaching for them can render an empty editor depending on how the user got there.
-A `datalist` gives the same type-to-filter behaviour with nothing to load.
-(`ha-icon` doesn't have that problem — it's registered early — so it's used
-directly, with a text fallback purely as a guard against a blank render.)
+The editor uses Home Assistant's own components — `ha-entity-picker`,
+`ha-textfield`, `ha-switch`, `ha-icon-button`, `ha-button`, `ha-icon` — so it
+looks and behaves like the rest of the frontend, and its sizes, weights and radii
+come from HA design tokens rather than literals.
+
+Each of those falls back to a native control if the element isn't registered
+(`ha-entity-picker` → `ha-selector` → a text field with a `datalist`). Custom
+elements are only defined once something in the frontend has pulled them in, and
+an unresolved custom element renders as an invisible box — the fallbacks mean an
+editor opened before they load stays usable instead of appearing blank.
 
 ## Licence
 

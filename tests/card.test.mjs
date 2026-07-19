@@ -250,16 +250,16 @@ test("unticking show values writes the explicit false", () => {
   assert.equal(last().show_values, false);
 });
 
-test("the entity datalist offers power sensors only", () => {
+test("the entity datalist offers power sensors only (fallback path)", () => {
   const states = {
-    "sensor.inverter_1": { state: "1", attributes: { unit_of_measurement: "W" } },
-    "sensor.inverter_1_kw": { state: "1", attributes: { unit_of_measurement: "kW" } },
-    "sensor.bedroom_temp": { state: "20", attributes: { unit_of_measurement: "°C" } },
+    "sensor.inverter_1": { state: "1", attributes: { device_class: "power" } },
+    "sensor.inverter_2": { state: "1", attributes: { device_class: "power" } },
+    "sensor.bedroom_temp": { state: "20", attributes: { device_class: "temperature" } },
     "light.kitchen": { state: "on", attributes: {} },
   };
   const { el } = editor({ banks: [{ name: "W", entities: [] }] }, states);
   const opts = q(el, "datalist option").map((o) => o.value);
-  assert.deepEqual(opts, ["sensor.inverter_1", "sensor.inverter_1_kw"]);
+  assert.deepEqual(opts, ["sensor.inverter_1", "sensor.inverter_2"]);
 });
 
 test("each editor gets its own datalist id, so inputs bind to the right list", () => {
@@ -409,6 +409,66 @@ test("add buttons become ha-button and still act", () => {
   assert.ok(add, "expected ha-button");
   add.dispatchEvent(new window.Event("click"));
   assert.equal(last().banks.length, 1);
+});
+
+console.log("entity picker");
+
+test("panels use ha-entity-picker, wired to hass and filtered to power sensors", () => {
+  window.customElements.define("ha-entity-picker", class extends window.HTMLElement {});
+  const states = { "sensor.a": { state: "1", attributes: { unit_of_measurement: "W" } } };
+  const { el } = editor({ banks: [{ name: "W", entities: ["sensor.a", ""] }] }, states);
+
+  const pickers = q(el, "ha-entity-picker");
+  assert.equal(pickers.length, 2, "one picker per panel");
+  assert.equal(pickers[0].value, "sensor.a");
+  assert.ok(pickers[0].hass, "picker never got hass");
+  assert.deepEqual(pickers[0].includeDomains, ["sensor"]);
+  assert.deepEqual(pickers[0].includeDeviceClasses, ["power"]);
+  assert.equal(pickers[0].allowCustomEntity, true);
+  // No typing required any more.
+  assert.equal(q(el, ".panels ha-textfield").length, 0);
+  assert.equal(q(el, ".panels input").length, 0);
+});
+
+test("the datalist fallback offers the same power sensors as the picker", () => {
+  const states = {
+    "sensor.inverter_1": { state: "1", attributes: { device_class: "power" } },
+    "sensor.house_energy": { state: "1", attributes: { device_class: "energy" } },
+    "sensor.bedroom_temp": { state: "20", attributes: { device_class: "temperature" } },
+    "sensor.no_class": { state: "5", attributes: {} },
+  };
+  const { el } = editor({ banks: [{ name: "W", entities: [] }] }, states);
+  assert.deepEqual(q(el, "datalist option").map((o) => o.value), ["sensor.inverter_1"]);
+});
+
+test("choosing an entity emits the config and stops the picker's own event", () => {
+  const states = { "sensor.a": { state: "1", attributes: {} } };
+  const { el, last } = editor({ banks: [{ name: "W", entities: [""] }] }, states);
+  const picker = q(el, "ha-entity-picker")[0];
+
+  let escaped = false;
+  el.addEventListener("value-changed", () => { escaped = true; });
+  const ev = new window.CustomEvent("value-changed", {
+    detail: { value: "sensor.a" }, bubbles: true, composed: true,
+  });
+  picker.dispatchEvent(ev);
+
+  assert.deepEqual(last().banks[0].entities, ["sensor.a"]);
+  assert.equal(escaped, false, "picker's value-changed leaked to the editor host");
+});
+
+test("clearing a picker writes an empty slot rather than undefined", () => {
+  const { el, last } = editor({ banks: [{ name: "W", entities: ["sensor.a"] }] });
+  const picker = q(el, "ha-entity-picker")[0];
+  picker.dispatchEvent(new window.CustomEvent("value-changed", { detail: { value: undefined } }));
+  assert.deepEqual(last().banks[0].entities, [""]);
+});
+
+test("later hass updates reach every picker", () => {
+  const { el } = editor({ banks: [{ name: "W", entities: ["a", "b"] }] });
+  const fresh = { states: { "sensor.new": { state: "5", attributes: {} } } };
+  el.hass = fresh;
+  for (const p of q(el, "ha-entity-picker")) assert.equal(p.hass, fresh);
 });
 
 test("button text is a child node, so it renders in a slot-based button", () => {

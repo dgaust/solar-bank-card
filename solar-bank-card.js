@@ -9,7 +9,7 @@
  * Dependency-free plain custom element - no Lit, no build step.
  */
 
-const CARD_VERSION = "1.7.1";
+const CARD_VERSION = "1.8.0";
 console.info(`%c SOLAR-BANK-CARD ${CARD_VERSION} `, "background:#f6a800;color:#000");
 
 const DEFAULT_MAX = 300; // W per panel at full output
@@ -359,8 +359,24 @@ class SolarBankCardEditor extends HTMLElement {
   set hass(hass) {
     const first = !this._hass;
     this._hass = hass;
+    // Pickers need a live hass to resolve names and icons; they are cheap to
+    // re-point and there are only as many as there are panels.
+    for (const p of this._pickers || []) p.hass = hass;
     // Entity ids only need collecting once; hass updates every state change.
     if (first) this._fillEntityOptions();
+  }
+
+  /**
+   * A panel is a power sensor. Filtering on the device class rather than on
+   * "anything numeric" keeps the dropdown to the handful of entities that could
+   * plausibly be a panel, instead of every number in the house.
+   */
+  static get ENTITY_DOMAINS() {
+    return ["sensor"];
+  }
+
+  static get ENTITY_DEVICE_CLASSES() {
+    return ["power"];
   }
 
   /** Structural fingerprint - changes only when the DOM needs rebuilding. */
@@ -382,12 +398,13 @@ class SolarBankCardEditor extends HTMLElement {
   _fillEntityOptions() {
     const list = this._datalist;
     if (!list || !this._hass) return;
+    // Same rule as the picker, so the fallback offers the same entities.
     const ids = Object.keys(this._hass.states)
       .filter((id) => id.startsWith("sensor."))
-      .filter((id) => {
-        const u = (this._hass.states[id].attributes.unit_of_measurement || "").toLowerCase();
-        return u === "w" || u === "kw";
-      })
+      .filter((id) =>
+        SolarBankCardEditor.ENTITY_DEVICE_CLASSES.includes(
+          this._hass.states[id].attributes.device_class
+        ))
       .sort();
     list.innerHTML = "";
     for (const id of ids) {
@@ -474,6 +491,8 @@ class SolarBankCardEditor extends HTMLElement {
     // <input list> resolves the id document-wide, so a fixed id would make a
     // second editor's inputs bind to the first editor's datalist. One id per
     // instance, and the element is held by reference rather than looked up.
+    // Dropped on every rebuild, or detached pickers would keep taking hass.
+    this._pickers = [];
     this._listId = `sbc-entities-${Math.random().toString(36).slice(2, 9)}`;
     const datalist = document.createElement("datalist");
     datalist.id = this._listId;
@@ -560,10 +579,10 @@ class SolarBankCardEditor extends HTMLElement {
     entities.forEach((id, pi) => {
       const row = document.createElement("div");
       row.className = "row";
-      const input = this._textRow(`Panel ${pi + 1}`, id, (v) => {
+      const input = this._entityField(`Panel ${pi + 1}`, id, (v) => {
         entities[pi] = v;
         this._emit();
-      }, { placeholder: "sensor.inverter_…", listId: this._listId });
+      });
       input.classList.add("grow");
       row.append(
         input,
@@ -623,6 +642,61 @@ class SolarBankCardEditor extends HTMLElement {
    */
   _field(tag) {
     return customElements.get(tag) ? document.createElement(tag) : null;
+  }
+
+  /**
+   * An entity chooser, preferring Home Assistant's own pickers so the field
+   * behaves like every other entity field in the frontend - search, friendly
+   * names, icons, keyboard support - instead of asking anyone to type an id.
+   *
+   * ha-entity-picker is the direct route; ha-selector is the generic wrapper
+   * that renders the same thing and is present wherever config flows are. The
+   * datalist text field remains as a last resort, so the editor still works if
+   * neither is registered.
+   */
+  _entityField(label, value, onChange) {
+    const picker = this._field("ha-entity-picker");
+    if (picker) {
+      picker.hass = this._hass;
+      picker.value = value;
+      picker.label = label;
+      picker.includeDomains = SolarBankCardEditor.ENTITY_DOMAINS;
+      picker.includeDeviceClasses = SolarBankCardEditor.ENTITY_DEVICE_CLASSES;
+      // Keep a hand-typed id working for a panel whose sensor lacks the class.
+      picker.allowCustomEntity = true;
+      picker.addEventListener("value-changed", (e) => {
+        // Don't let the picker's own event reach HA's editor dialog, which
+        // would read it as the editor reporting a config change of its own.
+        e.stopPropagation();
+        onChange((e.detail && e.detail.value) || "");
+      });
+      (this._pickers || (this._pickers = [])).push(picker);
+      return picker;
+    }
+
+    const selector = this._field("ha-selector");
+    if (selector) {
+      selector.hass = this._hass;
+      selector.selector = {
+        entity: {
+          domain: SolarBankCardEditor.ENTITY_DOMAINS,
+          device_class: SolarBankCardEditor.ENTITY_DEVICE_CLASSES,
+        },
+      };
+      selector.value = value;
+      selector.label = label;
+      selector.addEventListener("value-changed", (e) => {
+        e.stopPropagation();
+        onChange((e.detail && e.detail.value) || "");
+      });
+      (this._pickers || (this._pickers = [])).push(selector);
+      return selector;
+    }
+
+    return this._textRow(label, value, onChange, {
+      placeholder: "sensor.inverter_…",
+      listId: this._listId,
+    });
   }
 
   _textRow(label, value, onInput, { placeholder = "", listId = null } = {}) {
