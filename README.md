@@ -43,6 +43,7 @@ way to give it the full width — see
 | `banks`           | list   | —       | Required. Each bank has a `name` and an `entities` list.        |
 | `max_value`       | number | `300`   | Per-panel output, in watts, that counts as a fully shaded cell.  |
 | `title`           | string | —       | Optional card header.                                           |
+| `show_values`     | bool   | `true`  | Print each panel's output, centred in its cell.                 |
 | `watt_threshold`  | number | `1000`  | Output at or above this switches the display from W to kW.      |
 | `w_decimals`      | number | `0`     | Decimal places below the threshold.                             |
 | `kw_decimals`     | number | `1`     | Decimal places above it.                                        |
@@ -68,6 +69,34 @@ scaled automatically.
 - Every bank uses the widest bank's column count, so cells are the same size in
   each row and line up vertically. Banks of equal size fill the card width, which
   puts the last cell flush with the bank total above it.
+
+### Cell labels
+
+With `show_values` on (the default) each cell prints its own output, centred.
+The label is the bare number — the unit lives on the bank total, and at nine
+columns `265 W` crowds a cell in a way `265` does not. Hovering still gives the
+fully formatted value with the panel's name.
+
+Two things happen automatically, because a card can land in a stack, a section
+or a popup and can't know its own width:
+
+- The label colour flips to the theme's on-accent colour once a cell is at least
+  half full, so it stays readable as the fill darkens.
+- Labels hide themselves when a cell drops below 28px, rather than overflowing.
+  With a very wide bank on a narrow card you get the plain heatmap back.
+
+## Tests
+
+`tests/card.test.mjs` drives the real class the way Home Assistant does and
+asserts on the rendered DOM — no browser and no HA needed:
+
+```bash
+npm install --no-save jsdom
+node tests/card.test.mjs
+```
+
+`tests/harness.html` is the visual counterpart: open it directly in a browser to
+see the card at three widths with fake data, including an unavailable panel.
 
 ## Notes
 

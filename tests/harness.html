@@ -1,0 +1,67 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>solar-bank-card harness</title>
+<style>
+  :root {
+    --divider-color: #3a3a3a;
+    --primary-color: #f6a800;
+    --state-icon-active-color: #f6a800;
+    --primary-text-color: #e1e1e1;
+    --secondary-text-color: #9b9b9b;
+    --text-primary-color: #111111;
+    --error-color: #db4437;
+    --card-background-color: #1c1c1c;
+  }
+  body { background: #111; margin: 0; padding: 24px; font-family: Roboto, system-ui, sans-serif; }
+  ha-card {
+    display: block; background: var(--card-background-color);
+    border-radius: 12px; margin-bottom: 24px;
+  }
+  .case { max-width: 620px; margin-bottom: 8px; color: #888; font-size: 13px; }
+  .narrow { width: 260px; }
+  .verynarrow { width: 150px; }
+</style>
+</head>
+<body>
+  <div class="case">full width</div>
+  <div id="a"></div>
+  <div class="case">narrow (labels should still fit)</div>
+  <div id="b" class="narrow"></div>
+  <div class="case">very narrow (labels should auto-hide)</div>
+  <div id="c" class="verynarrow"></div>
+
+  <script src="../solar-bank-card.js"></script>
+  <script>
+    const WEST = [265, 278, 241, 259, 272, 238, 250, 266, 244];
+    const EAST = [118, 104, 131, 96, 112, 125, 88, 0, null];
+
+    const states = {};
+    const mk = (prefix, arr) => arr.map((w, i) => {
+      const id = `sensor.${prefix}_${i}`;
+      if (w !== null) {
+        states[id] = {
+          state: String(w),
+          attributes: { unit_of_measurement: "W", friendly_name: `Inverter ${prefix} ${i}` },
+        };
+      }
+      return id;
+    });
+
+    const config = {
+      banks: [
+        { name: "West", entities: mk("west", WEST) },
+        { name: "East", entities: mk("east", EAST) },
+      ],
+    };
+
+    for (const id of ["a", "b", "c"]) {
+      const el = document.createElement("solar-bank-card");
+      el.setConfig(JSON.parse(JSON.stringify(config)));
+      document.getElementById(id).appendChild(el);
+      el.hass = { states };
+    }
+  </script>
+</body>
+</html>

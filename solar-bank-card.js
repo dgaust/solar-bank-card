@@ -9,7 +9,7 @@
  * Dependency-free plain custom element - no Lit, no build step.
  */
 
-const CARD_VERSION = "1.3.0";
+const CARD_VERSION = "1.4.0";
 console.info(`%c SOLAR-BANK-CARD ${CARD_VERSION} `, "background:#f6a800;color:#000");
 
 const DEFAULT_MAX = 300; // W per panel at full output
@@ -149,6 +149,21 @@ class SolarBankCard extends HTMLElement {
       }
       .cell.dead { outline: 1px dashed var(--error-color); outline-offset: -1px; }
       .cell:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 1px; }
+      /* Centred both ways over the fill. pointer-events stay off so the label
+         never eats a click meant for the cell underneath. */
+      .val {
+        position: absolute; inset: 0; pointer-events: none;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 12px; font-weight: 500; line-height: 1;
+        font-variant-numeric: tabular-nums;
+        color: var(--primary-text-color);
+      }
+      /* A filled cell is a saturated block, so the label has to flip to the
+         theme's on-accent colour or it disappears into the fill. */
+      .cell.hot .val { color: var(--text-primary-color, #fff); }
+      /* Below roughly 28px a three-digit number stops being legible and starts
+         being noise; the hover text still has it. */
+      .grid.tight .val { display: none; }
     `;
 
     const wrap = document.createElement("div");
@@ -156,6 +171,8 @@ class SolarBankCard extends HTMLElement {
     this._cells = [];
 
     const columns = Math.max(...c.banks.map((b) => b.entities.length));
+    const showValues = c.show_values !== false;
+    this._grids = [];
 
     c.banks.forEach((bank, bi) => {
       const sec = document.createElement("div");
@@ -174,6 +191,7 @@ class SolarBankCard extends HTMLElement {
       const grid = document.createElement("div");
       grid.className = "grid";
       grid.style.gridTemplateColumns = `repeat(${columns}, minmax(0, 1fr))`;
+      this._grids.push(grid);
 
       const cells = bank.entities.map((id) => {
         const cell = document.createElement("div");
@@ -183,6 +201,12 @@ class SolarBankCard extends HTMLElement {
         const fill = document.createElement("div");
         fill.className = "fill";
         cell.appendChild(fill);
+        let val = null;
+        if (showValues) {
+          val = document.createElement("span");
+          val.className = "val";
+          cell.appendChild(val);
+        }
         const open = () => this._moreInfo(id);
         cell.addEventListener("click", open);
         cell.addEventListener("keydown", (e) => {
@@ -192,7 +216,7 @@ class SolarBankCard extends HTMLElement {
           }
         });
         grid.appendChild(cell);
-        return { id, cell, fill };
+        return { id, cell, fill, val };
       });
 
       sec.append(head, grid);
@@ -202,6 +226,37 @@ class SolarBankCard extends HTMLElement {
 
     card.append(style, wrap);
     this.appendChild(card);
+    if (showValues) this._watchWidth(columns);
+  }
+
+  /**
+   * Cell width depends on the card's width, which the card can't know: it lands
+   * in stacks, sections and popups of every size. Measure instead of guessing,
+   * and drop the labels once a cell is too small to hold one.
+   */
+  _watchWidth(columns) {
+    this._unwatch();
+    if (typeof ResizeObserver === "undefined") return;
+    const GAP = 4;
+    const MIN_CELL = 28;
+    this._ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const cell = (entry.contentRect.width - GAP * (columns - 1)) / columns;
+        entry.target.classList.toggle("tight", cell < MIN_CELL);
+      }
+    });
+    this._grids.forEach((g) => this._ro.observe(g));
+  }
+
+  _unwatch() {
+    if (this._ro) {
+      this._ro.disconnect();
+      this._ro = null;
+    }
+  }
+
+  disconnectedCallback() {
+    this._unwatch();
   }
 
   _update() {
@@ -212,13 +267,15 @@ class SolarBankCard extends HTMLElement {
       let live = 0;
       let unknown = 0;
 
-      cells.forEach(({ id, cell, fill }) => {
+      cells.forEach(({ id, cell, fill, val }) => {
         const w = this._watts(id);
         if (w === null) {
           unknown += 1;
           cell.classList.add("dead");
+          cell.classList.remove("hot");
           fill.style.opacity = 0;
           cell.title = `${id}: unavailable`;
+          if (val) val.textContent = "—";
           return;
         }
         cell.classList.remove("dead");
@@ -228,8 +285,14 @@ class SolarBankCard extends HTMLElement {
         // colour so this reads correctly in light and dark themes.
         const frac = Math.max(0, Math.min(1, w / max));
         fill.style.opacity = frac === 0 ? 0 : 0.15 + frac * 0.85;
+        // Past halfway the fill is dark enough that body text stops reading
+        // against it, so the label swaps to the on-accent colour.
+        cell.classList.toggle("hot", frac >= 0.5);
         const nm = this._hass.states[id].attributes.friendly_name || id;
         cell.title = `${nm}: ${this._fmt(w)}`;
+        // Bare number: the unit is already on the bank total, and at nine
+        // columns "265 W" crowds the cell in a way "265" does not.
+        if (val) val.textContent = w.toFixed(this._fmtOpts.w);
       });
 
       const n = cells.length;
