@@ -1,6 +1,4 @@
-# Replaces the whole "Solar Generation" section (19 cards) on the Power view.
-# Bank membership taken from the existing two-column layout: left column = west,
-# right column = east.
+# Drop-in "Solar Generation" section for the Power view.
 type: grid
 cards:
   - type: heading
@@ -10,24 +8,24 @@ cards:
     banks:
       - name: West
         entities:
-          - sensor.inverter_122016007611
-          - sensor.inverter_122016007612
-          - sensor.inverter_122016007609
-          - sensor.inverter_122016009980
-          - sensor.inverter_122016009650
-          - sensor.inverter_122016010683
-          - sensor.inverter_122016010704
-          - sensor.inverter_122016012044
-          - sensor.inverter_122016012087
+          - sensor.inverter_122016007611_west
+          - sensor.inverter_122016007612_west
+          - sensor.inverter_122016007609_west
+          - sensor.inverter_122016009980_west
+          - sensor.inverter_122016009650_west
+          - sensor.inverter_122016010683_west
+          - sensor.inverter_122016010704_west
+          - sensor.inverter_122016012044_west
+          - sensor.inverter_122016012087_west
       - name: East
         entities:
-          - sensor.inverter_122016006491
-          - sensor.inverter_122016007555
-          - sensor.inverter_122016010613
-          - sensor.inverter_122016010678
-          - sensor.inverter_122016010681
-          - sensor.inverter_122016011089
-          - sensor.inverter_122016012045
-          - sensor.inverter_122016012047
-          - sensor.inverter_122016012072
+          - sensor.inverter_122016006491_east
+          - sensor.inverter_122016007555_east
+          - sensor.inverter_122016010613_east
+          - sensor.inverter_122016010678_east
+          - sensor.inverter_122016010681_east
+          - sensor.inverter_122016011089_east
+          - sensor.inverter_122016012045_east
+          - sensor.inverter_122016012047_east
+          - sensor.inverter_122016012072_east
 column_span: 1
