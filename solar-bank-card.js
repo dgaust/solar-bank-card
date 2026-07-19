@@ -9,7 +9,7 @@
  * Dependency-free plain custom element - no Lit, no build step.
  */
 
-const CARD_VERSION = "1.4.0";
+const CARD_VERSION = "1.5.0";
 console.info(`%c SOLAR-BANK-CARD ${CARD_VERSION} `, "background:#f6a800;color:#000");
 
 const DEFAULT_MAX = 300; // W per panel at full output
@@ -27,8 +27,11 @@ class SolarBankCard extends HTMLElement {
     if (!config || !Array.isArray(config.banks) || !config.banks.length) {
       throw new Error("solar-bank-card: `banks` must be a non-empty list");
     }
+    // An empty entities list is allowed, not an error: the editor creates a
+    // bank first and fills it afterwards, so the intermediate config has to be
+    // renderable. Only a missing or non-list `entities` is a mistake.
     config.banks.forEach((b, i) => {
-      if (!Array.isArray(b.entities) || !b.entities.length) {
+      if (!Array.isArray(b.entities)) {
         throw new Error(`solar-bank-card: bank ${i + 1} needs an \`entities\` list`);
       }
     });
@@ -170,7 +173,9 @@ class SolarBankCard extends HTMLElement {
     wrap.className = "wrap";
     this._cells = [];
 
-    const columns = Math.max(...c.banks.map((b) => b.entities.length));
+    // At least one column: an all-empty config would otherwise emit
+    // repeat(0, ...), which is invalid and drops the grid entirely.
+    const columns = Math.max(1, ...c.banks.map((b) => b.entities.length));
     const showValues = c.show_values !== false;
     this._grids = [];
 
@@ -313,16 +318,337 @@ class SolarBankCard extends HTMLElement {
     );
   }
 
+  static getConfigElement() {
+    return document.createElement("solar-bank-card-editor");
+  }
+
   static getStubConfig() {
     return { title: "Solar Generation", banks: [{ name: "Bank A", entities: [] }] };
   }
 }
 
+/**
+ * Visual editor.
+ *
+ * Native inputs throughout, deliberately: ha-entity-picker and friends are only
+ * defined once something else in the frontend has pulled them in, so a card that
+ * reaches for them renders an empty editor at the wrong moment. A datalist gives
+ * the same type-to-filter behaviour with nothing to load.
+ *
+ * The DOM is rebuilt only when the *shape* of the config changes - a bank or a
+ * panel added, removed or moved. Typing in a field mutates the config and emits
+ * config-changed without touching the DOM, because rebuilding mid-keystroke
+ * would take the focus and the caret with it.
+ */
+class SolarBankCardEditor extends HTMLElement {
+  setConfig(config) {
+    this._config = JSON.parse(JSON.stringify(config || {}));
+    if (!Array.isArray(this._config.banks)) this._config.banks = [];
+    if (this._shape() !== this._builtShape) this._render();
+  }
+
+  set hass(hass) {
+    const first = !this._hass;
+    this._hass = hass;
+    // Entity ids only need collecting once; hass updates every state change.
+    if (first) this._fillEntityOptions();
+  }
+
+  /** Structural fingerprint - changes only when the DOM needs rebuilding. */
+  _shape() {
+    return this._config.banks.map((b) => (b.entities || []).length).join(",") +
+      `|${this._config.banks.length}`;
+  }
+
+  _emit({ rebuild = false } = {}) {
+    if (rebuild) this._render();
+    this.dispatchEvent(new CustomEvent("config-changed", {
+      detail: { config: this._config },
+      bubbles: true,
+      composed: true,
+    }));
+  }
+
+  /** Power sensors - the plausible candidates for a panel. */
+  _fillEntityOptions() {
+    const list = this._datalist;
+    if (!list || !this._hass) return;
+    const ids = Object.keys(this._hass.states)
+      .filter((id) => id.startsWith("sensor."))
+      .filter((id) => {
+        const u = (this._hass.states[id].attributes.unit_of_measurement || "").toLowerCase();
+        return u === "w" || u === "kw";
+      })
+      .sort();
+    list.innerHTML = "";
+    for (const id of ids) {
+      const opt = document.createElement("option");
+      opt.value = id;
+      const nm = this._hass.states[id].attributes.friendly_name;
+      if (nm) opt.label = nm;
+      list.appendChild(opt);
+    }
+  }
+
+  _render() {
+    this._builtShape = this._shape();
+    this.innerHTML = "";
+
+    const style = document.createElement("style");
+    style.textContent = `
+      .ed { display: flex; flex-direction: column; gap: 18px; padding: 4px 0; }
+      .grp { display: flex; flex-direction: column; gap: 10px; }
+      .grp > h4 {
+        margin: 0; font-size: 13px; font-weight: 500; text-transform: uppercase;
+        letter-spacing: .04em; color: var(--secondary-text-color);
+      }
+      .row { display: flex; align-items: center; gap: 8px; }
+      .row > label { flex: 1 1 auto; font-size: 14px; color: var(--primary-text-color); }
+      input[type=text], input[type=number] {
+        font: inherit; font-size: 14px; padding: 8px 10px; border-radius: 6px;
+        background: var(--secondary-background-color, transparent);
+        color: var(--primary-text-color);
+        border: 1px solid var(--divider-color);
+      }
+      input:focus-visible { outline: 2px solid var(--primary-color); outline-offset: -1px; }
+      input.num { width: 96px; flex: 0 0 auto; text-align: right; }
+      input.grow { flex: 1 1 auto; min-width: 0; }
+      .bank {
+        border: 1px solid var(--divider-color); border-radius: 8px;
+        padding: 10px; display: flex; flex-direction: column; gap: 8px;
+      }
+      .panels { display: flex; flex-direction: column; gap: 6px; }
+      .btn {
+        font: inherit; font-size: 13px; cursor: pointer; border-radius: 6px;
+        background: transparent; color: var(--primary-text-color);
+        border: 1px solid var(--divider-color); padding: 6px 10px;
+      }
+      .btn:hover { background: var(--secondary-background-color, rgba(127,127,127,.12)); }
+      .btn.icon { padding: 4px 8px; flex: 0 0 auto; line-height: 1; }
+      .btn.danger { color: var(--error-color); }
+      .btn:disabled { opacity: .35; cursor: default; }
+      .hint { font-size: 12px; color: var(--secondary-text-color); margin: 0; }
+    `;
+
+    const ed = document.createElement("div");
+    ed.className = "ed";
+
+    // <input list> resolves the id document-wide, so a fixed id would make a
+    // second editor's inputs bind to the first editor's datalist. One id per
+    // instance, and the element is held by reference rather than looked up.
+    this._listId = `sbc-entities-${Math.random().toString(36).slice(2, 9)}`;
+    const datalist = document.createElement("datalist");
+    datalist.id = this._listId;
+    this._datalist = datalist;
+
+    // --- card-level options -------------------------------------------------
+    const card = this._group("Card");
+    card.append(
+      this._textRow("Title", this._config.title || "", (v) => {
+        if (v) this._config.title = v; else delete this._config.title;
+        this._emit();
+      }),
+      this._numRow("Full-output watts per panel", this._config.max_value, 300, (v) => {
+        this._set("max_value", v, 300);
+      }),
+      this._checkRow("Show a value on each panel", this._config.show_values !== false, (v) => {
+        if (v) delete this._config.show_values; else this._config.show_values = false;
+        this._emit();
+      })
+    );
+
+    // --- formatting ---------------------------------------------------------
+    const fmt = this._group("Formatting");
+    fmt.append(
+      this._numRow("Switch to kW at (W)", this._config.watt_threshold, 1000, (v) => {
+        this._set("watt_threshold", v, 1000);
+      }),
+      this._numRow("Decimals below that", this._config.w_decimals, 0, (v) => {
+        this._set("w_decimals", v, 0);
+      }),
+      this._numRow("Decimals above it", this._config.kw_decimals, 1, (v) => {
+        this._set("kw_decimals", v, 1);
+      })
+    );
+
+    // --- banks --------------------------------------------------------------
+    const banks = this._group("Banks");
+    this._config.banks.forEach((bank, bi) => banks.appendChild(this._bankBlock(bank, bi)));
+
+    const addBank = this._button("+ Add bank", () => {
+      this._config.banks.push({ name: `Bank ${this._config.banks.length + 1}`, entities: [] });
+      this._emit({ rebuild: true });
+    });
+    banks.appendChild(addBank);
+
+    if (!this._config.banks.length) {
+      const hint = document.createElement("p");
+      hint.className = "hint";
+      hint.textContent = "Add a bank, then add a panel entity to it.";
+      banks.insertBefore(hint, addBank);
+    }
+
+    ed.append(card, fmt, banks, datalist);
+    this.append(style, ed);
+    this._fillEntityOptions();
+  }
+
+  _bankBlock(bank, bi) {
+    const box = document.createElement("div");
+    box.className = "bank";
+
+    const head = document.createElement("div");
+    head.className = "row";
+    const name = document.createElement("input");
+    name.type = "text";
+    name.className = "grow";
+    name.placeholder = "Bank name";
+    name.value = bank.name || "";
+    name.addEventListener("input", () => {
+      bank.name = name.value;
+      this._emit();
+    });
+    head.append(
+      name,
+      this._iconButton("↑", bi > 0, () => this._moveBank(bi, -1)),
+      this._iconButton("↓", bi < this._config.banks.length - 1, () => this._moveBank(bi, 1)),
+      this._iconButton("✕", true, () => {
+        this._config.banks.splice(bi, 1);
+        this._emit({ rebuild: true });
+      }, true)
+    );
+
+    const panels = document.createElement("div");
+    panels.className = "panels";
+    const entities = bank.entities || (bank.entities = []);
+    entities.forEach((id, pi) => {
+      const row = document.createElement("div");
+      row.className = "row";
+      const input = document.createElement("input");
+      input.type = "text";
+      input.className = "grow";
+      input.setAttribute("list", this._listId);
+      input.placeholder = "sensor.inverter_…";
+      input.value = id;
+      input.addEventListener("input", () => {
+        entities[pi] = input.value.trim();
+        this._emit();
+      });
+      row.append(
+        input,
+        this._iconButton("↑", pi > 0, () => this._movePanel(entities, pi, -1)),
+        this._iconButton("↓", pi < entities.length - 1, () => this._movePanel(entities, pi, 1)),
+        this._iconButton("✕", true, () => {
+          entities.splice(pi, 1);
+          this._emit({ rebuild: true });
+        }, true)
+      );
+      panels.appendChild(row);
+    });
+
+    box.append(head, panels, this._button("+ Add panel", () => {
+      entities.push("");
+      this._emit({ rebuild: true });
+    }));
+    return box;
+  }
+
+  _moveBank(i, d) {
+    const b = this._config.banks;
+    [b[i], b[i + d]] = [b[i + d], b[i]];
+    this._emit({ rebuild: true });
+  }
+
+  _movePanel(list, i, d) {
+    [list[i], list[i + d]] = [list[i + d], list[i]];
+    this._emit({ rebuild: true });
+  }
+
+  /** Numbers: blank or the default drops the key, so configs stay minimal. */
+  _set(key, value, fallback) {
+    if (value === "" || value === null || Number(value) === fallback) delete this._config[key];
+    else this._config[key] = Number(value);
+    this._emit();
+  }
+
+  _group(title) {
+    const g = document.createElement("div");
+    g.className = "grp";
+    const h = document.createElement("h4");
+    h.textContent = title;
+    g.appendChild(h);
+    return g;
+  }
+
+  _textRow(label, value, onInput) {
+    const row = document.createElement("div");
+    row.className = "row";
+    const l = document.createElement("label");
+    l.textContent = label;
+    const i = document.createElement("input");
+    i.type = "text";
+    i.className = "grow";
+    i.value = value;
+    i.addEventListener("input", () => onInput(i.value.trim()));
+    row.append(l, i);
+    return row;
+  }
+
+  _numRow(label, value, placeholder, onInput) {
+    const row = document.createElement("div");
+    row.className = "row";
+    const l = document.createElement("label");
+    l.textContent = label;
+    const i = document.createElement("input");
+    i.type = "number";
+    i.min = "0";
+    i.className = "num";
+    i.placeholder = String(placeholder);
+    i.value = value === undefined || value === null ? "" : String(value);
+    i.addEventListener("input", () => onInput(i.value));
+    row.append(l, i);
+    return row;
+  }
+
+  _checkRow(label, checked, onChange) {
+    const row = document.createElement("div");
+    row.className = "row";
+    const l = document.createElement("label");
+    l.textContent = label;
+    const i = document.createElement("input");
+    i.type = "checkbox";
+    i.checked = checked;
+    i.addEventListener("change", () => onChange(i.checked));
+    row.append(l, i);
+    return row;
+  }
+
+  _button(text, onClick) {
+    const b = document.createElement("button");
+    b.className = "btn";
+    b.type = "button";
+    b.textContent = text;
+    b.addEventListener("click", onClick);
+    return b;
+  }
+
+  _iconButton(text, enabled, onClick, danger = false) {
+    const b = this._button(text, onClick);
+    b.classList.add("icon");
+    if (danger) b.classList.add("danger");
+    b.disabled = !enabled;
+    return b;
+  }
+}
+
 customElements.define("solar-bank-card", SolarBankCard);
+customElements.define("solar-bank-card-editor", SolarBankCardEditor);
 
 window.customCards = window.customCards || [];
 window.customCards.push({
   type: "solar-bank-card",
   name: "Solar Bank Card",
   description: "Compact per-panel output grid for microinverter banks.",
+  preview: true,
+  documentationURL: "https://github.com/dgaust/solar-bank-card",
 });

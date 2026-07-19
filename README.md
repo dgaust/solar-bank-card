@@ -18,6 +18,14 @@ Dependency-free plain custom element — no Lit, no CDN, no build step.
 
 ## Configuration
 
+The card ships a visual editor, so **Add card → Solar Bank Card** gives you a
+form: add and name banks, add panels to them, reorder either with the arrows,
+and set every option below. The YAML underneath stays minimal — an option left
+at its default isn't written out.
+
+Entity fields are type-to-filter, listing the `sensor` entities measured in W or
+kW. Anything else can still be typed in by hand.
+
 ```yaml
 type: custom:solar-bank-card
 title: Solar generation
@@ -100,9 +108,16 @@ see the card at three widths with fake data, including an unavailable panel.
 
 ## Notes
 
-There is no editor UI — configure it in YAML. Bank membership usually can't be
-derived from Home Assistant, since microinverters typically arrive with no area
-or device grouping and serial number ranges don't reliably follow roof faces.
+Bank membership usually can't be derived from Home Assistant: microinverters
+typically arrive with no area or device grouping, and serial number ranges don't
+reliably follow roof faces. Assigning them is a manual job however you configure
+the card.
+
+The editor uses native inputs rather than `ha-entity-picker` and friends. Those
+are only defined once something else in the frontend has pulled them in, so a
+card reaching for them can render an empty editor depending on how the user got
+there. A `datalist` gives the same type-to-filter behaviour with nothing to load,
+which also keeps the card dependency-free.
 
 ## Licence
 
