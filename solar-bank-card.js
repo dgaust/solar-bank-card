@@ -9,7 +9,7 @@
  * Dependency-free plain custom element - no Lit, no build step.
  */
 
-const CARD_VERSION = "1.5.0";
+const CARD_VERSION = "1.6.0";
 console.info(`%c SOLAR-BANK-CARD ${CARD_VERSION} `, "background:#f6a800;color:#000");
 
 const DEFAULT_MAX = 300; // W per panel at full output
@@ -422,9 +422,13 @@ class SolarBankCardEditor extends HTMLElement {
         font: inherit; font-size: 13px; cursor: pointer; border-radius: 6px;
         background: transparent; color: var(--primary-text-color);
         border: 1px solid var(--divider-color); padding: 6px 10px;
+        display: inline-flex; align-items: center; justify-content: center; gap: 6px;
       }
       .btn:hover { background: var(--secondary-background-color, rgba(127,127,127,.12)); }
-      .btn.icon { padding: 4px 8px; flex: 0 0 auto; line-height: 1; }
+      /* ha-icon sizes from --mdc-icon-size; the editor's buttons want it
+         smaller than the frontend's 24px default. */
+      .btn ha-icon { --mdc-icon-size: 18px; width: 18px; height: 18px; }
+      .btn.icon { padding: 6px; flex: 0 0 auto; line-height: 1; }
       .btn.danger { color: var(--error-color); }
       .btn:disabled { opacity: .35; cursor: default; }
       .hint { font-size: 12px; color: var(--secondary-text-color); margin: 0; }
@@ -475,10 +479,10 @@ class SolarBankCardEditor extends HTMLElement {
     const banks = this._group("Banks");
     this._config.banks.forEach((bank, bi) => banks.appendChild(this._bankBlock(bank, bi)));
 
-    const addBank = this._button("+ Add bank", () => {
+    const addBank = this._button("Add bank", "mdi:plus", "+", () => {
       this._config.banks.push({ name: `Bank ${this._config.banks.length + 1}`, entities: [] });
       this._emit({ rebuild: true });
-    });
+    }, "add-bank");
     banks.appendChild(addBank);
 
     if (!this._config.banks.length) {
@@ -510,12 +514,14 @@ class SolarBankCardEditor extends HTMLElement {
     });
     head.append(
       name,
-      this._iconButton("↑", bi > 0, () => this._moveBank(bi, -1)),
-      this._iconButton("↓", bi < this._config.banks.length - 1, () => this._moveBank(bi, 1)),
-      this._iconButton("✕", true, () => {
+      this._iconButton("Move bank up", "mdi:arrow-up", "↑", bi > 0,
+        () => this._moveBank(bi, -1), "bank-up"),
+      this._iconButton("Move bank down", "mdi:arrow-down", "↓",
+        bi < this._config.banks.length - 1, () => this._moveBank(bi, 1), "bank-down"),
+      this._iconButton("Remove bank", "mdi:delete", "✕", true, () => {
         this._config.banks.splice(bi, 1);
         this._emit({ rebuild: true });
-      }, true)
+      }, "bank-remove", true)
     );
 
     const panels = document.createElement("div");
@@ -536,20 +542,22 @@ class SolarBankCardEditor extends HTMLElement {
       });
       row.append(
         input,
-        this._iconButton("↑", pi > 0, () => this._movePanel(entities, pi, -1)),
-        this._iconButton("↓", pi < entities.length - 1, () => this._movePanel(entities, pi, 1)),
-        this._iconButton("✕", true, () => {
+        this._iconButton("Move panel up", "mdi:arrow-up", "↑", pi > 0,
+          () => this._movePanel(entities, pi, -1), "panel-up"),
+        this._iconButton("Move panel down", "mdi:arrow-down", "↓", pi < entities.length - 1,
+          () => this._movePanel(entities, pi, 1), "panel-down"),
+        this._iconButton("Remove panel", "mdi:close", "✕", true, () => {
           entities.splice(pi, 1);
           this._emit({ rebuild: true });
-        }, true)
+        }, "panel-remove", true)
       );
       panels.appendChild(row);
     });
 
-    box.append(head, panels, this._button("+ Add panel", () => {
+    box.append(head, panels, this._button("Add panel", "mdi:plus", "+", () => {
       entities.push("");
       this._emit({ rebuild: true });
-    }));
+    }, "add-panel"));
     return box;
   }
 
@@ -623,20 +631,49 @@ class SolarBankCardEditor extends HTMLElement {
     return row;
   }
 
-  _button(text, onClick) {
+  /**
+   * An MDI glyph via ha-icon, the frontend's own icon element. It is registered
+   * early so it is reliably there; the text fallback exists only so a missing
+   * element degrades to something visible rather than an empty box.
+   */
+  _icon(name, fallback) {
+    if (customElements.get("ha-icon")) {
+      const i = document.createElement("ha-icon");
+      i.setAttribute("icon", name);
+      i.setAttribute("aria-hidden", "true");
+      return i;
+    }
+    const span = document.createElement("span");
+    span.setAttribute("aria-hidden", "true");
+    span.textContent = fallback;
+    return span;
+  }
+
+  _button(label, icon, fallback, onClick, action) {
     const b = document.createElement("button");
     b.className = "btn";
     b.type = "button";
-    b.textContent = text;
+    b.dataset.action = action;
+    b.append(this._icon(icon, fallback));
+    const text = document.createElement("span");
+    text.textContent = label;
+    b.appendChild(text);
     b.addEventListener("click", onClick);
     return b;
   }
 
-  _iconButton(text, enabled, onClick, danger = false) {
-    const b = this._button(text, onClick);
-    b.classList.add("icon");
+  /** Icon-only, so the label becomes the accessible name instead. */
+  _iconButton(label, icon, fallback, enabled, onClick, action, danger = false) {
+    const b = document.createElement("button");
+    b.className = "btn icon";
+    b.type = "button";
+    b.dataset.action = action;
+    b.title = label;
+    b.setAttribute("aria-label", label);
     if (danger) b.classList.add("danger");
     b.disabled = !enabled;
+    b.append(this._icon(icon, fallback));
+    b.addEventListener("click", onClick);
     return b;
   }
 }

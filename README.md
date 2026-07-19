@@ -113,11 +113,13 @@ typically arrive with no area or device grouping, and serial number ranges don't
 reliably follow roof faces. Assigning them is a manual job however you configure
 the card.
 
-The editor uses native inputs rather than `ha-entity-picker` and friends. Those
-are only defined once something else in the frontend has pulled them in, so a
-card reaching for them can render an empty editor depending on how the user got
-there. A `datalist` gives the same type-to-filter behaviour with nothing to load,
-which also keeps the card dependency-free.
+Icons are `ha-icon` with MDI names, matching the rest of Home Assistant. Text
+inputs are native rather than `ha-entity-picker` and friends: those are only
+defined once something else in the frontend has pulled them in, so a card
+reaching for them can render an empty editor depending on how the user got there.
+A `datalist` gives the same type-to-filter behaviour with nothing to load.
+(`ha-icon` doesn't have that problem — it's registered early — so it's used
+directly, with a text fallback purely as a guard against a blank render.)
 
 ## Licence
 

@@ -189,15 +189,14 @@ test("an empty bank is renderable, so a new bank can be filled in", () => {
 
 test("adding a bank emits a config with an empty bank", () => {
   const { el, last } = editor({ banks: [] });
-  const add = q(el, "button").find((b) => b.textContent === "+ Add bank");
-  add.dispatchEvent(new window.Event("click"));
+  el.querySelector('[data-action=add-bank]').dispatchEvent(new window.Event("click"));
   assert.equal(last().banks.length, 1);
   assert.deepEqual(last().banks[0].entities, []);
 });
 
 test("adding a panel appends an empty slot to that bank only", () => {
   const { el, last } = editor({ banks: [{ name: "W", entities: [] }, { name: "E", entities: [] }] });
-  const adds = q(el, "button").filter((b) => b.textContent === "+ Add panel");
+  const adds = q(el, "[data-action=add-panel]");
   assert.equal(adds.length, 2);
   adds[1].dispatchEvent(new window.Event("click"));
   assert.deepEqual(last().banks[0].entities, []);
@@ -216,9 +215,9 @@ test("typing an entity id updates that panel without rebuilding the DOM", () => 
 
 test("removing a panel and a bank both work", () => {
   const { el, last } = editor({ banks: [{ name: "W", entities: ["a", "b"] }, { name: "E", entities: ["c"] }] });
-  q(el, ".panels .row")[1].querySelector(".danger").dispatchEvent(new window.Event("click"));
+  q(el, "[data-action=panel-remove]")[1].dispatchEvent(new window.Event("click"));
   assert.deepEqual(last().banks[0].entities, ["a"]);
-  const bankRemove = q(el, ".bank > .row .danger");
+  const bankRemove = q(el, "[data-action=bank-remove]");
   bankRemove[bankRemove.length - 1].dispatchEvent(new window.Event("click"));
   assert.equal(last().banks.length, 1);
   assert.equal(last().banks[0].name, "W");
@@ -227,12 +226,10 @@ test("removing a panel and a bank both work", () => {
 test("reordering moves banks and panels", () => {
   const { el, last } = editor({ banks: [{ name: "W", entities: ["a", "b"] }, { name: "E", entities: [] }] });
   // Second bank's up arrow.
-  const bankRows = q(el, ".bank > .row");
-  bankRows[1].querySelectorAll(".icon")[0].dispatchEvent(new window.Event("click"));
+  q(el, "[data-action=bank-up]")[1].dispatchEvent(new window.Event("click"));
   assert.deepEqual(last().banks.map((b) => b.name), ["E", "W"]);
   // In the rebuilt DOM, move the now-second bank's first panel down.
-  const panelRow = q(el, ".panels .row")[0];
-  panelRow.querySelectorAll(".icon")[1].dispatchEvent(new window.Event("click"));
+  q(el, "[data-action=panel-down]")[0].dispatchEvent(new window.Event("click"));
   assert.deepEqual(last().banks[1].entities, ["b", "a"]);
 });
 
@@ -281,9 +278,48 @@ test("each editor gets its own datalist id, so inputs bind to the right list", (
 test("editing does not mutate the config object HA passed in", () => {
   const original = { banks: [{ name: "W", entities: ["a"] }] };
   const { el, last } = editor(original);
-  q(el, "button").find((b) => b.textContent === "+ Add bank").dispatchEvent(new window.Event("click"));
+  el.querySelector('[data-action=add-bank]').dispatchEvent(new window.Event("click"));
   assert.equal(original.banks.length, 1);
   assert.equal(last().banks.length, 2);
+});
+
+console.log("iconography");
+
+test("without ha-icon defined, buttons still show something visible", () => {
+  // jsdom has no HA frontend, so this exercises the fallback path.
+  const { el } = editor({ banks: [{ name: "W", entities: ["a"] }] });
+  assert.equal(el.querySelector("ha-icon"), null);
+  const up = el.querySelector("[data-action=panel-up]");
+  assert.equal(up.textContent.trim(), "↑");
+  assert.equal(up.getAttribute("aria-label"), "Move panel up");
+});
+
+test("with ha-icon defined, every button uses an mdi glyph", () => {
+  window.customElements.define("ha-icon", class extends window.HTMLElement {});
+  const { el } = editor({ banks: [{ name: "W", entities: ["a", "b"] }] });
+
+  const icons = q(el, "button ha-icon").map((i) => i.getAttribute("icon"));
+  assert.ok(icons.length >= 8, `expected icons on every button, saw ${icons.length}`);
+  assert.ok(icons.every((i) => i.startsWith("mdi:")), `non-mdi icon: ${icons}`);
+
+  const iconOf = (action) => el.querySelector(`[data-action=${action}] ha-icon`).getAttribute("icon");
+  assert.equal(iconOf("bank-up"), "mdi:arrow-up");
+  assert.equal(iconOf("bank-down"), "mdi:arrow-down");
+  assert.equal(iconOf("bank-remove"), "mdi:delete");
+  assert.equal(iconOf("panel-remove"), "mdi:close");
+  assert.equal(iconOf("add-bank"), "mdi:plus");
+  assert.equal(iconOf("add-panel"), "mdi:plus");
+
+  // No text glyphs left anywhere once the real element is available.
+  const glyphs = q(el, "button").map((b) => b.textContent).join("");
+  assert.equal(/[↑↓✕]/.test(glyphs), false, `text glyph survived: ${glyphs}`);
+});
+
+test("icon-only buttons keep an accessible name", () => {
+  const { el } = editor({ banks: [{ name: "W", entities: ["a"] }] });
+  for (const b of q(el, "button.icon")) {
+    assert.ok(b.getAttribute("aria-label"), `missing aria-label on ${b.dataset.action}`);
+  }
 });
 
 console.log(`\n${passed} passed`);
