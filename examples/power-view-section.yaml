@@ -1,5 +1,10 @@
-# Drop-in "Solar Generation" section for the Power view.
-type: grid
+# Drop-in "Solar Generation" block for the Power view.
+#
+# A vertical-stack is used rather than a sections grid: in a sections view the
+# card is handed a narrow column and the panels collapse to slivers, and the
+# heading lands beside the card instead of above it. The stack gives the card
+# the full width without any grid_options fiddling.
+type: vertical-stack
 cards:
   - type: heading
     heading: Solar Generation
@@ -28,4 +33,3 @@ cards:
           - sensor.inverter_122016012045_east
           - sensor.inverter_122016012047_east
           - sensor.inverter_122016012072_east
-column_span: 1

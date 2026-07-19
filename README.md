@@ -25,13 +25,18 @@ max_value: 300
 banks:
   - name: West
     entities:
-      - sensor.inverter_122016007611
-      - sensor.inverter_122016007612
+      - sensor.inverter_122016007611_west
+      - sensor.inverter_122016007612_west
   - name: East
     entities:
-      - sensor.inverter_122016006491
-      - sensor.inverter_122016007555
+      - sensor.inverter_122016006491_east
+      - sensor.inverter_122016007555_east
 ```
+
+In a **sections** view the card can end up in a narrow column, which squeezes
+the panels down to slivers. Wrapping it in a `vertical-stack` is the simplest
+way to give it the full width — see
+[`examples/power-view-section.yaml`](examples/power-view-section.yaml).
 
 | Option      | Type   | Default | Description                                                        |
 | ----------- | ------ | ------- | ------------------------------------------------------------------ |
@@ -52,6 +57,9 @@ scaled automatically.
   without reading every value.
 - Panels are laid out in config order, so listing them to match their physical
   arrangement on the roof makes the grid a rough map of the array.
+- Every bank uses the widest bank's column count, so cells are the same size in
+  each row and line up vertically. Banks of equal size fill the card width, which
+  puts the last cell flush with the bank total above it.
 
 ## Notes
 

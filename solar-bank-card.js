@@ -9,7 +9,7 @@
  * Dependency-free plain custom element - no Lit, no build step.
  */
 
-const CARD_VERSION = "1.1.0";
+const CARD_VERSION = "1.2.0";
 console.info(`%c SOLAR-BANK-CARD ${CARD_VERSION} `, "background:#f6a800;color:#000");
 
 const DEFAULT_MAX = 300; // W per panel at full output
@@ -47,18 +47,14 @@ class SolarBankCard extends HTMLElement {
   }
 
   /**
-   * Sections views hand an unknown custom card a narrow default column, which
-   * squeezes the panel grid into a couple of cells per row and wraps the header.
-   * A bank only reads as a bank when its panels sit on one line, so ask for the
-   * full section width and set a floor well above the default.
+   * Only consulted when the card is dropped straight into a sections view; a
+   * vertical-stack hands it the full width already. Sections give an unknown
+   * custom card a narrow default column, which squeezes the panels down to
+   * slivers, so ask for the whole width and keep the floor high - some setups
+   * ignore "full" and fall back to min_columns.
    */
   getGridOptions() {
-    const widest = Math.max(...this._config.banks.map((b) => b.entities.length));
-    return {
-      columns: "full",
-      rows: "auto",
-      min_columns: Math.min(12, Math.max(6, Math.ceil(widest / 2))),
-    };
+    return { columns: "full", rows: "auto", min_columns: 12 };
   }
 
   /** Watts for an entity, normalised to W (a kW-unit sensor is scaled up). */
@@ -97,11 +93,13 @@ class SolarBankCard extends HTMLElement {
                     white-space: nowrap; flex: 0 0 auto; }
       .bank-count { font-size: 12px; white-space: nowrap; min-width: 0;
                     overflow: hidden; text-overflow: ellipsis; }
-      /* Exactly one row per bank, always. A fixed column count (set inline per
-         bank) rather than auto-fit is what makes two equal-sized banks line up
-         cell-for-cell, so comparing east against west is a vertical glance.
-         Cells cap at 46px and shrink below it on a narrow card. */
-      .grid { display: grid; gap: 4px; margin-top: 6px; justify-content: start; }
+      /* Exactly one row per bank, always. Every bank gets the widest bank's
+         column count (set inline) so cells are the same size in every row and
+         line up vertically - comparing east against west is a glance down the
+         card. Columns are 1fr rather than a fixed cap so the widest bank spans
+         the full content width, putting its last cell flush with the right
+         edge where the bank total sits. */
+      .grid { display: grid; gap: 4px; margin-top: 6px; }
       .cell {
         position: relative; aspect-ratio: 1; border-radius: 4px; cursor: pointer;
         background: var(--divider-color);
@@ -120,6 +118,8 @@ class SolarBankCard extends HTMLElement {
     wrap.className = "wrap";
     this._cells = [];
 
+    const columns = Math.max(...c.banks.map((b) => b.entities.length));
+
     c.banks.forEach((bank, bi) => {
       const sec = document.createElement("div");
 
@@ -136,7 +136,7 @@ class SolarBankCard extends HTMLElement {
 
       const grid = document.createElement("div");
       grid.className = "grid";
-      grid.style.gridTemplateColumns = `repeat(${bank.entities.length}, minmax(0, 46px))`;
+      grid.style.gridTemplateColumns = `repeat(${columns}, minmax(0, 1fr))`;
 
       const cells = bank.entities.map((id) => {
         const cell = document.createElement("div");
