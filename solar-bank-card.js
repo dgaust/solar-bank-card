@@ -9,7 +9,7 @@
  * Dependency-free plain custom element - no Lit, no build step.
  */
 
-const CARD_VERSION = "1.0.0";
+const CARD_VERSION = "1.1.0";
 console.info(`%c SOLAR-BANK-CARD ${CARD_VERSION} `, "background:#f6a800;color:#000");
 
 const DEFAULT_MAX = 300; // W per panel at full output
@@ -46,6 +46,21 @@ class SolarBankCard extends HTMLElement {
     return 1 + this._config.banks.length;
   }
 
+  /**
+   * Sections views hand an unknown custom card a narrow default column, which
+   * squeezes the panel grid into a couple of cells per row and wraps the header.
+   * A bank only reads as a bank when its panels sit on one line, so ask for the
+   * full section width and set a floor well above the default.
+   */
+  getGridOptions() {
+    const widest = Math.max(...this._config.banks.map((b) => b.entities.length));
+    return {
+      columns: "full",
+      rows: "auto",
+      min_columns: Math.min(12, Math.max(6, Math.ceil(widest / 2))),
+    };
+  }
+
   /** Watts for an entity, normalised to W (a kW-unit sensor is scaled up). */
   _watts(id) {
     const st = this._hass.states[id];
@@ -66,18 +81,29 @@ class SolarBankCard extends HTMLElement {
     const style = document.createElement("style");
     style.textContent = `
       .wrap { padding: 8px 16px 16px; display: flex; flex-direction: column; gap: 14px; }
+      /* Nothing in the header may wrap: a wrapped "0/9 producing" or "0 W"
+         reads as broken rather than as merely tight. The name is the only
+         part allowed to ellipsize. */
       .bank-head {
-        display: flex; align-items: baseline; gap: 8px;
+        display: flex; align-items: baseline; gap: 8px; flex-wrap: nowrap;
         font-size: 14px; color: var(--secondary-text-color);
       }
-      .bank-name { font-weight: 500; color: var(--primary-text-color); }
+      .bank-name {
+        font-weight: 500; color: var(--primary-text-color);
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      }
       .bank-total { margin-left: auto; font-variant-numeric: tabular-nums;
-                    color: var(--primary-text-color); font-weight: 500; }
-      .bank-count { font-size: 12px; }
-      .grid { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+                    color: var(--primary-text-color); font-weight: 500;
+                    white-space: nowrap; flex: 0 0 auto; }
+      .bank-count { font-size: 12px; white-space: nowrap; min-width: 0;
+                    overflow: hidden; text-overflow: ellipsis; }
+      /* Exactly one row per bank, always. A fixed column count (set inline per
+         bank) rather than auto-fit is what makes two equal-sized banks line up
+         cell-for-cell, so comparing east against west is a vertical glance.
+         Cells cap at 46px and shrink below it on a narrow card. */
+      .grid { display: grid; gap: 4px; margin-top: 6px; justify-content: start; }
       .cell {
-        position: relative; flex: 1 1 22px; min-width: 22px; max-width: 46px;
-        aspect-ratio: 1; border-radius: 4px; cursor: pointer;
+        position: relative; aspect-ratio: 1; border-radius: 4px; cursor: pointer;
         background: var(--divider-color);
         transition: background-color 240ms ease-out;
       }
@@ -110,6 +136,7 @@ class SolarBankCard extends HTMLElement {
 
       const grid = document.createElement("div");
       grid.className = "grid";
+      grid.style.gridTemplateColumns = `repeat(${bank.entities.length}, minmax(0, 46px))`;
 
       const cells = bank.entities.map((id) => {
         const cell = document.createElement("div");
