@@ -1,0 +1,33 @@
+# Replaces the whole "Solar Generation" section (19 cards) on the Power view.
+# Bank membership taken from the existing two-column layout: left column = west,
+# right column = east.
+type: grid
+cards:
+  - type: heading
+    heading: Solar Generation
+  - type: custom:solar-bank-card
+    max_value: 300
+    banks:
+      - name: West
+        entities:
+          - sensor.inverter_122016007611
+          - sensor.inverter_122016007612
+          - sensor.inverter_122016007609
+          - sensor.inverter_122016009980
+          - sensor.inverter_122016009650
+          - sensor.inverter_122016010683
+          - sensor.inverter_122016010704
+          - sensor.inverter_122016012044
+          - sensor.inverter_122016012087
+      - name: East
+        entities:
+          - sensor.inverter_122016006491
+          - sensor.inverter_122016007555
+          - sensor.inverter_122016010613
+          - sensor.inverter_122016010678
+          - sensor.inverter_122016010681
+          - sensor.inverter_122016011089
+          - sensor.inverter_122016012045
+          - sensor.inverter_122016012047
+          - sensor.inverter_122016012072
+column_span: 1
