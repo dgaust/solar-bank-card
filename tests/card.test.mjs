@@ -411,4 +411,16 @@ test("add buttons become ha-button and still act", () => {
   assert.equal(last().banks.length, 1);
 });
 
+test("button text is a child node, so it renders in a slot-based button", () => {
+  // ha-button ignores a `label` property - the text must be in the default
+  // slot, or the button renders blank.
+  const { el } = editor({ banks: [{ name: "W", entities: [] }] });
+  for (const [action, label] of [["add-bank", "Add bank"], ["add-panel", "Add panel"]]) {
+    const b = el.querySelector(`[data-action=${action}]`);
+    assert.equal(b.textContent.trim(), label, `${action} has no visible text`);
+    const own = [...b.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim() === label);
+    assert.ok(own, `${action} label is not a child text node`);
+  }
+});
+
 console.log(`\n${passed} passed`);

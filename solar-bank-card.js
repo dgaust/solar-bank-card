@@ -9,7 +9,7 @@
  * Dependency-free plain custom element - no Lit, no build step.
  */
 
-const CARD_VERSION = "1.7.0";
+const CARD_VERSION = "1.7.1";
 console.info(`%c SOLAR-BANK-CARD ${CARD_VERSION} `, "background:#f6a800;color:#000");
 
 const DEFAULT_MAX = 300; // W per panel at full output
@@ -456,7 +456,12 @@ class SolarBankCardEditor extends HTMLElement {
       .btn ha-icon { --mdc-icon-size: 20px; width: 20px; height: 20px; }
       ha-icon-button { --mdc-icon-button-size: 36px; --mdc-icon-size: 20px; }
       .danger { color: var(--error-color); --icon-primary-color: var(--error-color); }
-      ha-button, mwc-button { --mdc-typography-button-text-transform: none; }
+      /* The add buttons sit in flex columns, which would stretch them to the
+         full width and turn a small action into a banner. */
+      ha-button, mwc-button, .btn {
+        align-self: flex-start;
+        --mdc-typography-button-text-transform: none;
+      }
       .hint {
         font-size: var(--ha-font-size-s, 12px);
         color: var(--secondary-text-color); margin: 0;
@@ -720,10 +725,14 @@ class SolarBankCardEditor extends HTMLElement {
     const ha = this._field("ha-button") || this._field("mwc-button");
     if (ha) {
       ha.dataset.action = action;
-      ha.label = label;
       const glyph = this._icon(icon, fallback);
       glyph.slot = "icon";
       ha.appendChild(glyph);
+      // The text has to be a child node, not a `label` property: ha-button is
+      // Material-Web based and renders its default slot, so a label property is
+      // silently ignored and the button comes out blank. A text node also works
+      // for mwc-button, which renders slotted content after its own label.
+      ha.appendChild(document.createTextNode(label));
       ha.addEventListener("click", onClick);
       return ha;
     }
