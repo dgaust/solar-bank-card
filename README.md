@@ -38,11 +38,19 @@ the panels down to slivers. Wrapping it in a `vertical-stack` is the simplest
 way to give it the full width — see
 [`examples/power-view-section.yaml`](examples/power-view-section.yaml).
 
-| Option      | Type   | Default | Description                                                        |
-| ----------- | ------ | ------- | ------------------------------------------------------------------ |
-| `banks`     | list   | —       | Required. Each bank has a `name` and an `entities` list.            |
-| `max_value` | number | `300`   | Per-panel output, in watts, that counts as a fully shaded cell.     |
-| `title`     | string | —       | Optional card header.                                               |
+| Option            | Type   | Default | Description                                                    |
+| ----------------- | ------ | ------- | -------------------------------------------------------------- |
+| `banks`           | list   | —       | Required. Each bank has a `name` and an `entities` list.        |
+| `max_value`       | number | `300`   | Per-panel output, in watts, that counts as a fully shaded cell.  |
+| `title`           | string | —       | Optional card header.                                           |
+| `watt_threshold`  | number | `1000`  | Output at or above this switches the display from W to kW.      |
+| `w_decimals`      | number | `0`     | Decimal places below the threshold.                             |
+| `kw_decimals`     | number | `1`     | Decimal places above it.                                        |
+
+The three formatting options are named and defaulted to match
+`power-flow-card-plus`, so a dashboard carrying both cards can be made to agree
+by copying the values across. They apply to the bank totals and to the per-cell
+hover text alike.
 
 Entities are read in watts. A sensor whose `unit_of_measurement` is `kW` is
 scaled automatically.

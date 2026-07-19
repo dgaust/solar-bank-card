@@ -9,11 +9,18 @@
  * Dependency-free plain custom element - no Lit, no build step.
  */
 
-const CARD_VERSION = "1.2.0";
+const CARD_VERSION = "1.3.0";
 console.info(`%c SOLAR-BANK-CARD ${CARD_VERSION} `, "background:#f6a800;color:#000");
 
 const DEFAULT_MAX = 300; // W per panel at full output
 const IDLE_W = 1; // below this a panel counts as asleep
+
+// Option names and defaults deliberately match power-flow-card-plus, so a
+// dashboard carrying both cards can be made to agree by copying the values
+// across rather than translating between two vocabularies.
+const DEFAULT_W_DECIMALS = 0;
+const DEFAULT_KW_DECIMALS = 1;
+const DEFAULT_WATT_THRESHOLD = 1000;
 
 class SolarBankCard extends HTMLElement {
   setConfig(config) {
@@ -25,8 +32,38 @@ class SolarBankCard extends HTMLElement {
         throw new Error(`solar-bank-card: bank ${i + 1} needs an \`entities\` list`);
       }
     });
+    const num = (value, fallback, label) => {
+      if (value === undefined || value === null) return fallback;
+      const n = Number(value);
+      if (!isFinite(n) || n < 0) {
+        throw new Error(`solar-bank-card: \`${label}\` must be a non-negative number`);
+      }
+      return n;
+    };
+
     this._config = config;
+    this._fmtOpts = {
+      w: num(config.w_decimals, DEFAULT_W_DECIMALS, "w_decimals"),
+      kw: num(config.kw_decimals, DEFAULT_KW_DECIMALS, "kw_decimals"),
+      threshold: num(config.watt_threshold, DEFAULT_WATT_THRESHOLD, "watt_threshold"),
+    };
     this._sig = null;
+  }
+
+  /**
+   * Watts formatted per config: below watt_threshold as W, above it as kW.
+   * A threshold of 0 therefore means "always kW" and a huge one means
+   * "never kW", which is the whole range of behaviour anyone has asked for.
+   */
+  _fmt(w) {
+    const { w: wd, kw: kwd, threshold } = this._fmtOpts;
+    // Compare what will actually be shown, not the raw value: 999.6 W rounds
+    // to "1000" at zero decimals, and printing "1000 W" next to a threshold of
+    // 1000 looks like a bug even though the arithmetic is right.
+    const rounded = Number(w.toFixed(wd));
+    return Math.abs(rounded) >= threshold
+      ? `${(w / 1000).toFixed(kwd)} kW`
+      : `${rounded.toFixed(wd)} W`;
   }
 
   set hass(hass) {
@@ -192,14 +229,14 @@ class SolarBankCard extends HTMLElement {
         const frac = Math.max(0, Math.min(1, w / max));
         fill.style.opacity = frac === 0 ? 0 : 0.15 + frac * 0.85;
         const nm = this._hass.states[id].attributes.friendly_name || id;
-        cell.title = `${nm}: ${w.toFixed(0)} W`;
+        cell.title = `${nm}: ${this._fmt(w)}`;
       });
 
       const n = cells.length;
       count.textContent = unknown
         ? `${live}/${n} producing · ${unknown} offline`
         : `${live}/${n} producing`;
-      total.textContent = sum >= 1000 ? `${(sum / 1000).toFixed(2)} kW` : `${sum.toFixed(0)} W`;
+      total.textContent = this._fmt(sum);
     });
   }
 
