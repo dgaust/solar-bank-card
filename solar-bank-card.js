@@ -9,7 +9,7 @@
  * Dependency-free plain custom element - no Lit, no build step.
  */
 
-const CARD_VERSION = "1.8.0";
+const CARD_VERSION = "1.8.1";
 console.info(`%c SOLAR-BANK-CARD ${CARD_VERSION} `, "background:#f6a800;color:#000");
 
 const DEFAULT_MAX = 300; // W per panel at full output
@@ -550,6 +550,23 @@ class SolarBankCardEditor extends HTMLElement {
     this._fillEntityOptions();
   }
 
+  /**
+   * Every handler reaches the config through `this._config` at click time
+   * rather than closing over the bank or entities array it was built from.
+   * setConfig deep-copies whatever HA hands back, and HA hands every
+   * config-changed straight back - so a captured array is orphaned the moment
+   * the first edit round-trips, and mutating it changes nothing that gets
+   * emitted.
+   */
+  _bank(bi) {
+    return this._config.banks[bi];
+  }
+
+  _entities(bi) {
+    const bank = this._bank(bi);
+    return bank.entities || (bank.entities = []);
+  }
+
   _bankBlock(bank, bi) {
     const box = document.createElement("div");
     box.className = "bank";
@@ -557,7 +574,7 @@ class SolarBankCardEditor extends HTMLElement {
     const head = document.createElement("div");
     head.className = "row";
     const name = this._textRow("Bank name", bank.name || "", (v) => {
-      bank.name = v;
+      this._bank(bi).name = v;
       this._emit();
     }, { placeholder: "Bank name" });
     name.classList.add("grow");
@@ -580,18 +597,18 @@ class SolarBankCardEditor extends HTMLElement {
       const row = document.createElement("div");
       row.className = "row";
       const input = this._entityField(`Panel ${pi + 1}`, id, (v) => {
-        entities[pi] = v;
+        this._entities(bi)[pi] = v;
         this._emit();
       });
       input.classList.add("grow");
       row.append(
         input,
         this._iconButton("Move panel up", "mdi:arrow-up", "↑", pi > 0,
-          () => this._movePanel(entities, pi, -1), "panel-up"),
+          () => this._movePanel(bi, pi, -1), "panel-up"),
         this._iconButton("Move panel down", "mdi:arrow-down", "↓", pi < entities.length - 1,
-          () => this._movePanel(entities, pi, 1), "panel-down"),
+          () => this._movePanel(bi, pi, 1), "panel-down"),
         this._iconButton("Remove panel", "mdi:close", "✕", true, () => {
-          entities.splice(pi, 1);
+          this._entities(bi).splice(pi, 1);
           this._emit({ rebuild: true });
         }, "panel-remove", true)
       );
@@ -599,7 +616,7 @@ class SolarBankCardEditor extends HTMLElement {
     });
 
     box.append(head, panels, this._button("Add panel", "mdi:plus", "+", () => {
-      entities.push("");
+      this._entities(bi).push("");
       this._emit({ rebuild: true });
     }, "add-panel"));
     return box;
@@ -611,7 +628,8 @@ class SolarBankCardEditor extends HTMLElement {
     this._emit({ rebuild: true });
   }
 
-  _movePanel(list, i, d) {
+  _movePanel(bi, i, d) {
+    const list = this._entities(bi);
     [list[i], list[i + d]] = [list[i + d], list[i]];
     this._emit({ rebuild: true });
   }

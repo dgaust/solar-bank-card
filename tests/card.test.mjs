@@ -162,11 +162,21 @@ test("a bad config is rejected rather than rendered", () => {
 
 console.log("editor");
 
-/** An editor wired up the way HA wires it, with a config-changed spy. */
-function editor(config, states = {}) {
+/**
+ * An editor wired up the way HA wires it, with a config-changed spy.
+ *
+ * `roundTrip` reproduces what the real card editor does: every config-changed
+ * is fed straight back in through setConfig. That round trip replaces the
+ * editor's config object, so anything the DOM captured by reference goes stale
+ * - which is exactly how the delete-an-empty-panel bug got in.
+ */
+function editor(config, states = {}, { roundTrip = false } = {}) {
   const el = Card.getConfigElement();
   const emitted = [];
-  el.addEventListener("config-changed", (e) => emitted.push(e.detail.config));
+  el.addEventListener("config-changed", (e) => {
+    emitted.push(JSON.parse(JSON.stringify(e.detail.config)));
+    if (roundTrip) el.setConfig(JSON.parse(JSON.stringify(e.detail.config)));
+  });
   window.document.body.appendChild(el);
   el.hass = { states };
   el.setConfig(config);
@@ -409,6 +419,65 @@ test("add buttons become ha-button and still act", () => {
   assert.ok(add, "expected ha-button");
   add.dispatchEvent(new window.Event("click"));
   assert.equal(last().banks.length, 1);
+});
+
+console.log("edits survive HA's round trip");
+
+const click = (el, action, i = 0) =>
+  q(el, `[data-action=${action}]`)[i].dispatchEvent(new window.Event("click"));
+
+test("an empty panel can be added and then deleted", () => {
+  const { el, last } = editor({ banks: [{ name: "W", entities: [] }] }, {}, { roundTrip: true });
+  click(el, "add-panel");
+  assert.deepEqual(last().banks[0].entities, [""]);
+  click(el, "panel-remove");
+  assert.deepEqual(last().banks[0].entities, [], "delete did nothing after a round trip");
+});
+
+test("a filled panel can be deleted after a round trip", () => {
+  const { el, last } = editor(
+    { banks: [{ name: "W", entities: ["sensor.a", "sensor.b"] }] }, {}, { roundTrip: true });
+  click(el, "panel-remove", 0);
+  assert.deepEqual(last().banks[0].entities, ["sensor.b"]);
+});
+
+test("a bank can be added and then deleted", () => {
+  const { el, last } = editor({ banks: [{ name: "W", entities: [] }] }, {}, { roundTrip: true });
+  click(el, "add-bank");
+  assert.equal(last().banks.length, 2);
+  click(el, "bank-remove", 1);
+  assert.equal(last().banks.length, 1);
+  assert.equal(last().banks[0].name, "W");
+});
+
+test("renaming a bank sticks across round trips", () => {
+  const { el, last } = editor({ banks: [{ name: "W", entities: [] }] }, {}, { roundTrip: true });
+  click(el, "add-bank");
+  // The bank name field is ha-textfield or a native input depending on what is
+  // registered; `.grow` in the bank header is whichever one it built.
+  const nameField = q(el, ".bank > .row > .grow")[1];
+  nameField.value = "East";
+  nameField.dispatchEvent(new window.Event("input"));
+  assert.equal(last().banks[1].name, "East");
+});
+
+test("reordering still works once the config has round-tripped", () => {
+  const { el, last } = editor(
+    { banks: [{ name: "W", entities: ["a", "b"] }] }, {}, { roundTrip: true });
+  click(el, "add-panel");
+  assert.deepEqual(last().banks[0].entities, ["a", "b", ""]);
+  click(el, "panel-up", 1);
+  assert.deepEqual(last().banks[0].entities, ["b", "a", ""]);
+});
+
+test("repeated add and delete leaves no residue", () => {
+  const { el, last } = editor({ banks: [{ name: "W", entities: [] }] }, {}, { roundTrip: true });
+  for (let i = 0; i < 3; i += 1) {
+    click(el, "add-panel");
+    click(el, "panel-remove");
+  }
+  assert.deepEqual(last().banks[0].entities, []);
+  assert.equal(q(el, ".panels [data-action=panel-remove]").length, 0);
 });
 
 console.log("entity picker");
