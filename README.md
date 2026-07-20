@@ -101,24 +101,20 @@ whatever the rest of the dashboard is doing. To override it, pick a colour in th
 editor — it's Home Assistant's own colour picker, the same one behind the tile
 card's Color option.
 
-Colours are set per card, and per bank if you want the two roofs to read
-differently:
-
 ```yaml
 type: custom:solar-bank-card
-color: amber          # every bank, unless the bank overrides it
-banks:
-  - name: West
-    color: deep-orange
-    entities: [...]
-  - name: East        # falls back to the card colour
-    entities: [...]
+color: amber
+banks: [...]
 ```
 
 The value is a theme colour *name* (`amber`, `deep-orange`, `primary`, …), not a
 hex code, so it resolves through `--<name>-color` and keeps following the theme
 in both light and dark mode. Anything that isn't a plain colour name is ignored
 and the card falls back to the theme.
+
+The colour is a property of the card, not of a bank. Every bank shades the same
+way, because the shading *is* the measurement — giving each bank its own hue
+would put a second, meaningless variable on top of the one that carries the data.
 
 ### Cell labels
 

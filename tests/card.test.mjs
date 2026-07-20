@@ -347,7 +347,9 @@ test("a card colour applies to every bank", () => {
   assert.equal(fillOf(el, 1), "var(--amber-color)");
 });
 
-test("a bank colour overrides the card colour", () => {
+test("banks share the card's colour; a stray per-bank colour is ignored", () => {
+  // The shading already carries a variable - a second one per bank would
+  // compete with it, so bank.color is deliberately not honoured.
   const el = window.document.createElement("solar-bank-card");
   el.setConfig({
     color: "amber",
@@ -358,7 +360,7 @@ test("a bank colour overrides the card colour", () => {
   });
   window.document.body.appendChild(el);
   el.hass = { states: {} };
-  assert.equal(fillOf(el, 0), "var(--deep-orange-color)");
+  assert.equal(fillOf(el, 0), "var(--amber-color)");
   assert.equal(fillOf(el, 1), "var(--amber-color)");
 });
 
@@ -601,26 +603,23 @@ test("colour uses HA's ui_color selector, per card and per bank", () => {
   const { el, last } = editor({ banks: [{ name: "W", entities: [] }] }, {}, { roundTrip: true });
 
   const colors = q(el, "ha-selector.color-field");
-  assert.equal(colors.length, 2, "expected a card colour and a bank colour");
-  for (const c of colors) {
-    assert.deepEqual(c.selector, { ui_color: { include_none: true } });
-    assert.ok(c.hass, "colour picker never got hass");
-  }
+  assert.equal(colors.length, 1, "colour belongs to the card, not to each bank");
+  assert.deepEqual(colors[0].selector, { ui_color: { include_none: true } });
+  assert.ok(colors[0].hass, "colour picker never got hass");
 
   colors[0].dispatchEvent(new window.CustomEvent("value-changed", { detail: { value: "amber" } }));
   assert.equal(last().color, "amber");
-  colors[1].dispatchEvent(new window.CustomEvent("value-changed", { detail: { value: "green" } }));
-  assert.equal(last().banks[0].color, "green");
 });
 
 test("clearing a colour removes the key rather than storing none", () => {
-  const { el, last } = editor(
-    { color: "amber", banks: [{ name: "W", entities: [], color: "green" }] }, {}, { roundTrip: true });
-  const colors = q(el, "ha-selector.color-field");
-  colors[0].dispatchEvent(new window.CustomEvent("value-changed", { detail: { value: "none" } }));
+  const { el, last } = editor({ color: "amber", banks: [{ name: "W", entities: [] }] },
+    {}, { roundTrip: true });
+  const color = q(el, "ha-selector.color-field")[0];
+  color.dispatchEvent(new window.CustomEvent("value-changed", { detail: { value: "none" } }));
   assert.equal("color" in last(), false);
-  colors[1].dispatchEvent(new window.CustomEvent("value-changed", { detail: { value: "" } }));
-  assert.equal("color" in last().banks[0], false);
+  color.dispatchEvent(new window.CustomEvent("value-changed", { detail: { value: "amber" } }));
+  color.dispatchEvent(new window.CustomEvent("value-changed", { detail: { value: "" } }));
+  assert.equal("color" in last(), false);
 });
 
 test("button text is a child node, so it renders in a slot-based button", () => {

@@ -9,7 +9,7 @@
  * Dependency-free plain custom element - no Lit, no build step.
  */
 
-const CARD_VERSION = "1.9.0";
+const CARD_VERSION = "1.9.1";
 console.info(`%c SOLAR-BANK-CARD ${CARD_VERSION} `, "background:#f6a800;color:#000");
 
 const DEFAULT_MAX = 300; // W per panel at full output
@@ -206,10 +206,12 @@ class SolarBankCard extends HTMLElement {
     const showValues = c.show_values !== false;
     this._grids = [];
 
+    // One colour for the whole card. The cells already carry a variable in
+    // their shading; a second one per bank would compete with it.
+    const fill = colorVar(c.color);
+
     c.banks.forEach((bank, bi) => {
       const sec = document.createElement("div");
-      // A bank's own colour wins over the card's, which wins over the theme.
-      const fill = colorVar(bank.color) || colorVar(c.color);
       if (fill) sec.style.setProperty("--sbc-fill", fill);
 
       const head = document.createElement("div");
@@ -533,9 +535,7 @@ class SolarBankCardEditor extends HTMLElement {
         if (v) delete this._config.show_values; else this._config.show_values = false;
         this._emit();
       }),
-      this._colorRow("Colour", this._config.color || "", (v) => {
-        this._setColor(this._config, v);
-      })
+      this._colorRow("Colour", this._config.color || "", (v) => this._setColor(v))
     );
 
     // --- formatting ---------------------------------------------------------
@@ -614,10 +614,6 @@ class SolarBankCardEditor extends HTMLElement {
       }, "bank-remove", true)
     );
 
-    const color = this._colorRow("Colour", bank.color || "", (v) => {
-      this._setColor(this._bank(bi), v);
-    });
-
     const panels = document.createElement("div");
     panels.className = "panels";
     const entities = bank.entities || (bank.entities = []);
@@ -643,7 +639,7 @@ class SolarBankCardEditor extends HTMLElement {
       panels.appendChild(row);
     });
 
-    box.append(head, color, panels, this._button("Add panel", "mdi:plus", "+", () => {
+    box.append(head, panels, this._button("Add panel", "mdi:plus", "+", () => {
       this._entities(bi).push("");
       this._emit({ rebuild: true });
     }, "add-panel"));
@@ -667,9 +663,9 @@ class SolarBankCardEditor extends HTMLElement {
    * reports its cleared state as "none", and writing that through would leave
    * dead keys in every config anyone ever opened.
    */
-  _setColor(target, value) {
-    if (!value || value === "none") delete target.color;
-    else target.color = value;
+  _setColor(value) {
+    if (!value || value === "none") delete this._config.color;
+    else this._config.color = value;
     this._emit();
   }
 
