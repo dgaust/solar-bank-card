@@ -68,14 +68,13 @@ way to give it the full width — see
 | `title`           | string | —       | Optional card header.                                           |
 | `show_values`     | bool   | `true`  | Print each panel's output, centred in its cell.                 |
 | `color`           | string | —       | Theme colour name for the cell fill. Omit to follow the theme.  |
-| `watt_threshold`  | number | `1000`  | Output at or above this switches the display from W to kW.      |
-| `w_decimals`      | number | `0`     | Decimal places below the threshold.                             |
-| `kw_decimals`     | number | `1`     | Decimal places above it.                                        |
+| `w_decimals`      | number | `0`     | Decimal places while the total reads in watts.                  |
+| `kw_decimals`     | number | `1`     | Decimal places once it reads in kilowatts.                      |
 
-The three formatting options are named and defaulted to match
-`power-flow-card-plus`, so a dashboard carrying both cards can be made to agree
-by copying the values across. They apply to the bank totals and to the per-cell
-hover text alike.
+Totals switch from W to kW at a kilowatt; that crossover isn't configurable. The
+two decimal options are named and defaulted to match `power-flow-card-plus`, so
+a dashboard carrying both cards can be made to agree by copying the values
+across. They apply to the bank totals and to the per-cell hover text alike.
 
 Entities are read in watts. A sensor whose `unit_of_measurement` is `kW` is
 scaled automatically.

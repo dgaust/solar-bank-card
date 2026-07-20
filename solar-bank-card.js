@@ -9,18 +9,18 @@
  * Dependency-free plain custom element - no Lit, no build step.
  */
 
-const CARD_VERSION = "1.9.1";
+const CARD_VERSION = "1.10.0";
 console.info(`%c SOLAR-BANK-CARD ${CARD_VERSION} `, "background:#f6a800;color:#000");
 
 const DEFAULT_MAX = 300; // W per panel at full output
 const IDLE_W = 1; // below this a panel counts as asleep
 
-// Option names and defaults deliberately match power-flow-card-plus, so a
-// dashboard carrying both cards can be made to agree by copying the values
+// Decimal option names and defaults deliberately match power-flow-card-plus, so
+// a dashboard carrying both cards can be made to agree by copying the values
 // across rather than translating between two vocabularies.
 const DEFAULT_W_DECIMALS = 0;
 const DEFAULT_KW_DECIMALS = 1;
-const DEFAULT_WATT_THRESHOLD = 1000;
+const WATT_THRESHOLD = 1000; // where W becomes kW; not configurable
 
 /**
  * Home Assistant's ui_color picker yields a theme colour name - "red",
@@ -64,23 +64,22 @@ class SolarBankCard extends HTMLElement {
     this._fmtOpts = {
       w: num(config.w_decimals, DEFAULT_W_DECIMALS, "w_decimals"),
       kw: num(config.kw_decimals, DEFAULT_KW_DECIMALS, "kw_decimals"),
-      threshold: num(config.watt_threshold, DEFAULT_WATT_THRESHOLD, "watt_threshold"),
     };
     this._sig = null;
   }
 
   /**
-   * Watts formatted per config: below watt_threshold as W, above it as kW.
-   * A threshold of 0 therefore means "always kW" and a huge one means
-   * "never kW", which is the whole range of behaviour anyone has asked for.
+   * Watts below a kilowatt, kW above it. The crossover is fixed: a
+   * configurable threshold was an option nobody needed, and the one value
+   * anyone would pick is the one the unit prefix already implies.
    */
   _fmt(w) {
-    const { w: wd, kw: kwd, threshold } = this._fmtOpts;
+    const { w: wd, kw: kwd } = this._fmtOpts;
     // Compare what will actually be shown, not the raw value: 999.6 W rounds
-    // to "1000" at zero decimals, and printing "1000 W" next to a threshold of
-    // 1000 looks like a bug even though the arithmetic is right.
+    // to "1000" at zero decimals, and printing "1000 W" rather than "1.0 kW"
+    // looks like a bug even though the arithmetic is right.
     const rounded = Number(w.toFixed(wd));
-    return Math.abs(rounded) >= threshold
+    return Math.abs(rounded) >= WATT_THRESHOLD
       ? `${(w / 1000).toFixed(kwd)} kW`
       : `${rounded.toFixed(wd)} W`;
   }
@@ -541,13 +540,10 @@ class SolarBankCardEditor extends HTMLElement {
     // --- formatting ---------------------------------------------------------
     const fmt = this._group("Formatting");
     fmt.append(
-      this._numRow("Switch to kW at (W)", this._config.watt_threshold, 1000, (v) => {
-        this._set("watt_threshold", v, 1000);
-      }),
-      this._numRow("Decimals below that", this._config.w_decimals, 0, (v) => {
+      this._numRow("Decimals in watts", this._config.w_decimals, 0, (v) => {
         this._set("w_decimals", v, 0);
       }),
-      this._numRow("Decimals above it", this._config.kw_decimals, 1, (v) => {
+      this._numRow("Decimals in kilowatts", this._config.kw_decimals, 1, (v) => {
         this._set("kw_decimals", v, 1);
       })
     );

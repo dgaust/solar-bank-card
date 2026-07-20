@@ -120,7 +120,7 @@ test("bank total and count reflect the panels", () => {
   assert.equal(el.querySelector(".bank-count").textContent, "2/3 producing");
 });
 
-test("totals cross into kW at the threshold", () => {
+test("totals cross into kW at a kilowatt, regardless of config", () => {
   assert.equal(
     render([{ name: "W", values: [500, 500] }]).querySelector(".bank-total").textContent,
     "1.0 kW"
@@ -128,6 +128,12 @@ test("totals cross into kW at the threshold", () => {
   assert.equal(
     render([{ name: "W", values: [500, 499] }]).querySelector(".bank-total").textContent,
     "999 W"
+  );
+  // A leftover watt_threshold from an older config is ignored, not honoured.
+  assert.equal(
+    render([{ name: "W", values: [500, 500] }], { watt_threshold: 5000 })
+      .querySelector(".bank-total").textContent,
+    "1.0 kW"
   );
 });
 
