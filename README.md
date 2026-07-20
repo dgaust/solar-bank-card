@@ -67,6 +67,7 @@ way to give it the full width — see
 | `max_value`       | number | `300`   | Per-panel output, in watts, that counts as a fully shaded cell.  |
 | `title`           | string | —       | Optional card header.                                           |
 | `show_values`     | bool   | `true`  | Print each panel's output, centred in its cell.                 |
+| `color`           | string | —       | Theme colour name for the cell fill. Omit to follow the theme.  |
 | `watt_threshold`  | number | `1000`  | Output at or above this switches the display from W to kW.      |
 | `w_decimals`      | number | `0`     | Decimal places below the threshold.                             |
 | `kw_decimals`     | number | `1`     | Decimal places above it.                                        |
@@ -92,6 +93,32 @@ scaled automatically.
 - Every bank uses the widest bank's column count, so cells are the same size in
   each row and line up vertically. Banks of equal size fill the card width, which
   puts the last cell flush with the bank total above it.
+
+### Colour
+
+By default the cells use the theme's active-state colour, so the card matches
+whatever the rest of the dashboard is doing. To override it, pick a colour in the
+editor — it's Home Assistant's own colour picker, the same one behind the tile
+card's Color option.
+
+Colours are set per card, and per bank if you want the two roofs to read
+differently:
+
+```yaml
+type: custom:solar-bank-card
+color: amber          # every bank, unless the bank overrides it
+banks:
+  - name: West
+    color: deep-orange
+    entities: [...]
+  - name: East        # falls back to the card colour
+    entities: [...]
+```
+
+The value is a theme colour *name* (`amber`, `deep-orange`, `primary`, …), not a
+hex code, so it resolves through `--<name>-color` and keeps following the theme
+in both light and dark mode. Anything that isn't a plain colour name is ignored
+and the card falls back to the theme.
 
 ### Cell labels
 

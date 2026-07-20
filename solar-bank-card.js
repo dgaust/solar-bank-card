@@ -9,7 +9,7 @@
  * Dependency-free plain custom element - no Lit, no build step.
  */
 
-const CARD_VERSION = "1.8.1";
+const CARD_VERSION = "1.9.0";
 console.info(`%c SOLAR-BANK-CARD ${CARD_VERSION} `, "background:#f6a800;color:#000");
 
 const DEFAULT_MAX = 300; // W per panel at full output
@@ -21,6 +21,22 @@ const IDLE_W = 1; // below this a panel counts as asleep
 const DEFAULT_W_DECIMALS = 0;
 const DEFAULT_KW_DECIMALS = 1;
 const DEFAULT_WATT_THRESHOLD = 1000;
+
+/**
+ * Home Assistant's ui_color picker yields a theme colour name - "red",
+ * "primary", "light-blue" - which resolves to a --<name>-color variable, the
+ * same convention the tile card uses. Anything else is ignored rather than
+ * interpolated, so a hand-edited config can't inject CSS.
+ */
+const COLOR_NAME = /^[a-z][a-z-]*$/;
+
+function colorVar(name) {
+  if (!name || name === "none" || name === "default" || !COLOR_NAME.test(name)) return null;
+  // "state" means "follow the entity's state colour", which is what the card
+  // already does by default.
+  if (name === "state") return null;
+  return `var(--${name}-color)`;
+}
 
 class SolarBankCard extends HTMLElement {
   setConfig(config) {
@@ -74,7 +90,7 @@ class SolarBankCard extends HTMLElement {
     if (!this._config) return;
     // Build once, then only push values. The signature covers everything that
     // changes DOM structure so a config edit rebuilds but a state tick doesn't.
-    const sig = JSON.stringify([this._config.title, this._config.banks]);
+    const sig = JSON.stringify([this._config.title, this._config.color, this._config.banks]);
     if (sig !== this._sig) {
       this._sig = sig;
       this._build();
@@ -151,10 +167,12 @@ class SolarBankCard extends HTMLElement {
         background: var(--divider-color);
         transition: background-color 240ms ease-out;
       }
+      /* --sbc-fill is set per bank when a colour is configured; unset, the
+         card follows the theme's active-state colour as before. */
       .cell .fill {
         position: absolute; inset: 0;
         border-radius: var(--ha-border-radius-sm, 4px);
-        background: var(--state-icon-active-color, var(--primary-color));
+        background: var(--sbc-fill, var(--state-icon-active-color, var(--primary-color)));
         opacity: 0; transition: opacity 240ms ease-out;
       }
       .cell.dead { outline: 1px dashed var(--error-color); outline-offset: -1px; }
@@ -190,6 +208,9 @@ class SolarBankCard extends HTMLElement {
 
     c.banks.forEach((bank, bi) => {
       const sec = document.createElement("div");
+      // A bank's own colour wins over the card's, which wins over the theme.
+      const fill = colorVar(bank.color) || colorVar(c.color);
+      if (fill) sec.style.setProperty("--sbc-fill", fill);
 
       const head = document.createElement("div");
       head.className = "bank-head";
@@ -511,6 +532,9 @@ class SolarBankCardEditor extends HTMLElement {
       this._checkRow("Show a value on each panel", this._config.show_values !== false, (v) => {
         if (v) delete this._config.show_values; else this._config.show_values = false;
         this._emit();
+      }),
+      this._colorRow("Colour", this._config.color || "", (v) => {
+        this._setColor(this._config, v);
       })
     );
 
@@ -577,7 +601,7 @@ class SolarBankCardEditor extends HTMLElement {
       this._bank(bi).name = v;
       this._emit();
     }, { placeholder: "Bank name" });
-    name.classList.add("grow");
+    name.classList.add("grow", "bank-name-field");
     head.append(
       name,
       this._iconButton("Move bank up", "mdi:arrow-up", "↑", bi > 0,
@@ -589,6 +613,10 @@ class SolarBankCardEditor extends HTMLElement {
         this._emit({ rebuild: true });
       }, "bank-remove", true)
     );
+
+    const color = this._colorRow("Colour", bank.color || "", (v) => {
+      this._setColor(this._bank(bi), v);
+    });
 
     const panels = document.createElement("div");
     panels.className = "panels";
@@ -615,7 +643,7 @@ class SolarBankCardEditor extends HTMLElement {
       panels.appendChild(row);
     });
 
-    box.append(head, panels, this._button("Add panel", "mdi:plus", "+", () => {
+    box.append(head, color, panels, this._button("Add panel", "mdi:plus", "+", () => {
       this._entities(bi).push("");
       this._emit({ rebuild: true });
     }, "add-panel"));
@@ -632,6 +660,17 @@ class SolarBankCardEditor extends HTMLElement {
     const list = this._entities(bi);
     [list[i], list[i + d]] = [list[i + d], list[i]];
     this._emit({ rebuild: true });
+  }
+
+  /**
+   * "No colour" is the absence of the key, not a stored "none": the picker
+   * reports its cleared state as "none", and writing that through would leave
+   * dead keys in every config anyone ever opened.
+   */
+  _setColor(target, value) {
+    if (!value || value === "none") delete target.color;
+    else target.color = value;
+    this._emit();
   }
 
   /** Numbers: blank or the default drops the key, so configs stay minimal. */
@@ -715,6 +754,59 @@ class SolarBankCardEditor extends HTMLElement {
       placeholder: "sensor.inverter_…",
       listId: this._listId,
     });
+  }
+
+  /**
+   * Home Assistant's own colour picker, the one behind the tile card's Color
+   * option. It is an ha-selector of type ui_color, which yields a theme colour
+   * name rather than a hex value - so the choice keeps following the user's
+   * theme in both light and dark mode.
+   *
+   * The fallback is a plain select of the same names, for the case where
+   * ha-selector isn't registered.
+   */
+  _colorRow(label, value, onChange) {
+    const selector = this._field("ha-selector");
+    if (selector) {
+      selector.hass = this._hass;
+      selector.selector = { ui_color: { include_none: true } };
+      selector.value = value || "none";
+      selector.label = label;
+      selector.classList.add("field", "color-field");
+      selector.addEventListener("value-changed", (e) => {
+        e.stopPropagation();
+        onChange((e.detail && e.detail.value) || "");
+      });
+      (this._pickers || (this._pickers = [])).push(selector);
+      return selector;
+    }
+
+    const row = document.createElement("div");
+    row.className = "row color-field";
+    const l = document.createElement("label");
+    l.textContent = label;
+    const sel = document.createElement("select");
+    sel.className = "grow";
+    for (const name of SolarBankCardEditor.COLORS) {
+      const opt = document.createElement("option");
+      opt.value = name === "none" ? "" : name;
+      opt.textContent = name === "none" ? "Default (theme)" : name.replace(/-/g, " ");
+      if (opt.value === (value || "")) opt.selected = true;
+      sel.appendChild(opt);
+    }
+    sel.addEventListener("change", () => onChange(sel.value));
+    row.append(l, sel);
+    return row;
+  }
+
+  /** The frontend's theme colour names, as offered by the ui_color selector. */
+  static get COLORS() {
+    return [
+      "none", "primary", "accent", "red", "pink", "purple", "deep-purple",
+      "indigo", "blue", "light-blue", "cyan", "teal", "green", "light-green",
+      "lime", "yellow", "amber", "orange", "deep-orange", "brown", "grey",
+      "blue-grey", "black", "white",
+    ];
   }
 
   _textRow(label, value, onInput, { placeholder = "", listId = null } = {}) {

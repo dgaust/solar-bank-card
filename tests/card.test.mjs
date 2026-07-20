@@ -273,7 +273,7 @@ test("the entity datalist offers power sensors only (fallback path)", () => {
 });
 
 test("each editor gets its own datalist id, so inputs bind to the right list", () => {
-  const states = { "sensor.a": { state: "1", attributes: { unit_of_measurement: "W" } } };
+  const states = { "sensor.a": { state: "1", attributes: { device_class: "power" } } };
   const cfg = { banks: [{ name: "W", entities: ["sensor.a"] }] };
   const one = editor(cfg, states);
   const two = editor(cfg, states);
@@ -330,6 +330,62 @@ test("icon-only buttons keep an accessible name", () => {
   for (const b of q(el, "button.icon")) {
     assert.ok(b.getAttribute("aria-label"), `missing aria-label on ${b.dataset.action}`);
   }
+});
+
+console.log("colour override");
+
+const fillOf = (el, i = 0) => q(el, ".grid")[i].parentElement.style.getPropertyValue("--sbc-fill");
+
+test("no colour set leaves the theme's active colour in charge", () => {
+  const el = render([{ name: "W", values: [1] }]);
+  assert.equal(fillOf(el), "");
+});
+
+test("a card colour applies to every bank", () => {
+  const el = render([{ name: "W", values: [1] }, { name: "E", values: [1] }], { color: "amber" });
+  assert.equal(fillOf(el, 0), "var(--amber-color)");
+  assert.equal(fillOf(el, 1), "var(--amber-color)");
+});
+
+test("a bank colour overrides the card colour", () => {
+  const el = window.document.createElement("solar-bank-card");
+  el.setConfig({
+    color: "amber",
+    banks: [
+      { name: "W", entities: ["sensor.x"], color: "deep-orange" },
+      { name: "E", entities: ["sensor.y"] },
+    ],
+  });
+  window.document.body.appendChild(el);
+  el.hass = { states: {} };
+  assert.equal(fillOf(el, 0), "var(--deep-orange-color)");
+  assert.equal(fillOf(el, 1), "var(--amber-color)");
+});
+
+test("meaningless colour values fall back rather than emitting broken CSS", () => {
+  for (const color of ["none", "default", "state", "", null]) {
+    const el = render([{ name: "W", values: [1] }], { color });
+    assert.equal(fillOf(el), "", `expected no fill for ${JSON.stringify(color)}`);
+  }
+});
+
+test("a hand-edited config can't inject CSS through the colour", () => {
+  for (const color of ["red; background: url(x)", "red)", "--evil", "RED", "1red"]) {
+    const el = render([{ name: "W", values: [1] }], { color });
+    assert.equal(fillOf(el), "", `expected rejection of ${JSON.stringify(color)}`);
+  }
+});
+
+test("changing only the colour rebuilds the card", () => {
+  const el = window.document.createElement("solar-bank-card");
+  const cfg = { banks: [{ name: "W", entities: ["sensor.x"] }] };
+  el.setConfig(cfg);
+  window.document.body.appendChild(el);
+  el.hass = { states: {} };
+  assert.equal(fillOf(el), "");
+  el.setConfig({ ...cfg, color: "green" });
+  el.hass = { states: {} };
+  assert.equal(fillOf(el), "var(--green-color)", "colour change did not reach the DOM");
 });
 
 console.log("theme tokens");
@@ -454,8 +510,8 @@ test("renaming a bank sticks across round trips", () => {
   const { el, last } = editor({ banks: [{ name: "W", entities: [] }] }, {}, { roundTrip: true });
   click(el, "add-bank");
   // The bank name field is ha-textfield or a native input depending on what is
-  // registered; `.grow` in the bank header is whichever one it built.
-  const nameField = q(el, ".bank > .row > .grow")[1];
+  // registered; the class is on whichever one it built.
+  const nameField = q(el, ".bank-name-field")[1];
   nameField.value = "East";
   nameField.dispatchEvent(new window.Event("input"));
   assert.equal(last().banks[1].name, "East");
@@ -538,6 +594,33 @@ test("later hass updates reach every picker", () => {
   const fresh = { states: { "sensor.new": { state: "5", attributes: {} } } };
   el.hass = fresh;
   for (const p of q(el, "ha-entity-picker")) assert.equal(p.hass, fresh);
+});
+
+test("colour uses HA's ui_color selector, per card and per bank", () => {
+  window.customElements.define("ha-selector", class extends window.HTMLElement {});
+  const { el, last } = editor({ banks: [{ name: "W", entities: [] }] }, {}, { roundTrip: true });
+
+  const colors = q(el, "ha-selector.color-field");
+  assert.equal(colors.length, 2, "expected a card colour and a bank colour");
+  for (const c of colors) {
+    assert.deepEqual(c.selector, { ui_color: { include_none: true } });
+    assert.ok(c.hass, "colour picker never got hass");
+  }
+
+  colors[0].dispatchEvent(new window.CustomEvent("value-changed", { detail: { value: "amber" } }));
+  assert.equal(last().color, "amber");
+  colors[1].dispatchEvent(new window.CustomEvent("value-changed", { detail: { value: "green" } }));
+  assert.equal(last().banks[0].color, "green");
+});
+
+test("clearing a colour removes the key rather than storing none", () => {
+  const { el, last } = editor(
+    { color: "amber", banks: [{ name: "W", entities: [], color: "green" }] }, {}, { roundTrip: true });
+  const colors = q(el, "ha-selector.color-field");
+  colors[0].dispatchEvent(new window.CustomEvent("value-changed", { detail: { value: "none" } }));
+  assert.equal("color" in last(), false);
+  colors[1].dispatchEvent(new window.CustomEvent("value-changed", { detail: { value: "" } }));
+  assert.equal("color" in last().banks[0], false);
 });
 
 test("button text is a child node, so it renders in a slot-based button", () => {
