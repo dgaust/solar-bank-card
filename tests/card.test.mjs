@@ -92,6 +92,35 @@ test("show_values: false omits the labels entirely", () => {
   assert.equal(q(el, ".cell").length, 1);
 });
 
+test("panels below the labelling floor show shading only", () => {
+  // Default floor is 5 W.
+  const el = render([{ name: "W", values: [0, 1, 4, 5, 6, 265] }]);
+  assert.deepEqual(text(el, ".val"), ["", "", "", "5", "6", "265"]);
+});
+
+test("the labelling floor is configurable", () => {
+  const el = render([{ name: "W", values: [0, 4, 20, 60] }], { min_label_value: 50 });
+  assert.deepEqual(text(el, ".val"), ["", "", "", "60"]);
+});
+
+test("a floor of zero labels everything, including a sleeping panel", () => {
+  const el = render([{ name: "W", values: [0, 3] }], { min_label_value: 0 });
+  assert.deepEqual(text(el, ".val"), ["0", "3"]);
+});
+
+test("hiding a label leaves the cell, its shading and its hover text alone", () => {
+  const el = render([{ name: "W", values: [2] }]);
+  assert.equal(q(el, ".cell").length, 1);
+  assert.equal(q(el, ".val").length, 1, "the label element should stay, just empty");
+  assert.match(el.querySelector(".cell").title, /2 W$/);
+  assert.notEqual(el.querySelector(".fill").style.opacity, "0", "shading should survive");
+});
+
+test("the floor never hides a bank total", () => {
+  const el = render([{ name: "W", values: [1, 2] }]);
+  assert.equal(el.querySelector(".bank-total").textContent, "3 W");
+});
+
 test("an unavailable panel labels as an em dash, not NaN", () => {
   const el = render([{ name: "W", values: [265, null] }]);
   assert.deepEqual(text(el, ".val"), ["265", "—"]);

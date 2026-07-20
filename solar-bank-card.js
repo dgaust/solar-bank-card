@@ -9,7 +9,7 @@
  * Dependency-free plain custom element - no Lit, no build step.
  */
 
-const CARD_VERSION = "1.10.0";
+const CARD_VERSION = "1.11.0";
 console.info(`%c SOLAR-BANK-CARD ${CARD_VERSION} `, "background:#f6a800;color:#000");
 
 const DEFAULT_MAX = 300; // W per panel at full output
@@ -21,6 +21,9 @@ const IDLE_W = 1; // below this a panel counts as asleep
 const DEFAULT_W_DECIMALS = 0;
 const DEFAULT_KW_DECIMALS = 1;
 const WATT_THRESHOLD = 1000; // where W becomes kW; not configurable
+// Below this a cell shows no label. A panel trickling a watt or two at dusk
+// says nothing worth the ink, and eighteen near-zero numbers is just noise.
+const DEFAULT_MIN_LABEL = 5;
 
 /**
  * Home Assistant's ui_color picker yields a theme colour name - "red",
@@ -65,6 +68,7 @@ class SolarBankCard extends HTMLElement {
       w: num(config.w_decimals, DEFAULT_W_DECIMALS, "w_decimals"),
       kw: num(config.kw_decimals, DEFAULT_KW_DECIMALS, "kw_decimals"),
     };
+    this._minLabel = num(config.min_label_value, DEFAULT_MIN_LABEL, "min_label_value");
     this._sig = null;
   }
 
@@ -327,8 +331,9 @@ class SolarBankCard extends HTMLElement {
         const nm = this._hass.states[id].attributes.friendly_name || id;
         cell.title = `${nm}: ${this._fmt(w)}`;
         // Bare number: the unit is already on the bank total, and at nine
-        // columns "265 W" crowds the cell in a way "265" does not.
-        if (val) val.textContent = w.toFixed(this._fmtOpts.w);
+        // columns "265 W" crowds the cell in a way "265" does not. A panel
+        // below the labelling floor shows its shading only.
+        if (val) val.textContent = w < this._minLabel ? "" : w.toFixed(this._fmtOpts.w);
       });
 
       const n = cells.length;
@@ -540,6 +545,10 @@ class SolarBankCardEditor extends HTMLElement {
     // --- formatting ---------------------------------------------------------
     const fmt = this._group("Formatting");
     fmt.append(
+      this._numRow("Hide labels below (W)", this._config.min_label_value,
+        DEFAULT_MIN_LABEL, (v) => {
+          this._set("min_label_value", v, DEFAULT_MIN_LABEL);
+        }),
       this._numRow("Decimals in watts", this._config.w_decimals, 0, (v) => {
         this._set("w_decimals", v, 0);
       }),

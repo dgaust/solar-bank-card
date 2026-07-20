@@ -68,6 +68,7 @@ way to give it the full width — see
 | `title`           | string | —       | Optional card header.                                           |
 | `show_values`     | bool   | `true`  | Print each panel's output, centred in its cell.                 |
 | `color`           | string | —       | Theme colour name for the cell fill. Omit to follow the theme.  |
+| `min_label_value` | number | `5`     | Panels below this many watts show no label. `0` labels all.     |
 | `w_decimals`      | number | `0`     | Decimal places while the total reads in watts.                  |
 | `kw_decimals`     | number | `1`     | Decimal places once it reads in kilowatts.                      |
 
@@ -121,6 +122,11 @@ With `show_values` on (the default) each cell prints its own output, centred.
 The label is the bare number — the unit lives on the bank total, and at nine
 columns `265 W` crowds a cell in a way `265` does not. Hovering still gives the
 fully formatted value with the panel's name.
+
+Panels below `min_label_value` watts (5 by default) show their shading and no
+number. A panel trickling a watt or two at dusk says nothing worth reading, and
+eighteen near-zero labels is noise. Set it to `0` to label everything. Bank
+totals and hover text always show the real value regardless.
 
 Two things happen automatically, because a card can land in a stack, a section
 or a popup and can't know its own width:
