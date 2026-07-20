@@ -167,8 +167,8 @@ class SolarBankCard extends HTMLElement {
         background: var(--divider-color);
         transition: background-color 240ms ease-out;
       }
-      /* --sbc-fill is set per bank when a colour is configured; unset, the
-         card follows the theme's active-state colour as before. */
+      /* --sbc-fill is set from the card's colour when one is configured;
+         unset, the card follows the theme's active-state colour. */
       .cell .fill {
         position: absolute; inset: 0;
         border-radius: var(--ha-border-radius-sm, 4px);
