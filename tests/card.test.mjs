@@ -121,6 +121,24 @@ test("the floor never hides a bank total", () => {
   assert.equal(el.querySelector(".bank-total").textContent, "3 W");
 });
 
+test("the producing count uses the same floor as the labels", () => {
+  // Two panels trickling below the floor: no labels, and not counted.
+  const el = render([{ name: "W", values: [1, 2, 265] }]);
+  assert.deepEqual(text(el, ".val"), ["", "", "265"]);
+  assert.equal(el.querySelector(".bank-count").textContent, "1/3 producing");
+});
+
+test("a raised floor moves the count with it", () => {
+  const el = render([{ name: "W", values: [20, 60, 265] }], { min_label_value: 50 });
+  assert.equal(el.querySelector(".bank-count").textContent, "2/3 producing");
+});
+
+test("a zero floor still doesn't count a panel making nothing", () => {
+  const el = render([{ name: "W", values: [0, 1, 2] }], { min_label_value: 0 });
+  assert.deepEqual(text(el, ".val"), ["0", "1", "2"]);
+  assert.equal(el.querySelector(".bank-count").textContent, "2/3 producing");
+});
+
 test("an unavailable panel labels as an em dash, not NaN", () => {
   const el = render([{ name: "W", values: [265, null] }]);
   assert.deepEqual(text(el, ".val"), ["265", "—"]);

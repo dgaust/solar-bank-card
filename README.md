@@ -68,7 +68,7 @@ way to give it the full width — see
 | `title`           | string | —       | Optional card header.                                           |
 | `show_values`     | bool   | `true`  | Print each panel's output, centred in its cell.                 |
 | `color`           | string | —       | Theme colour name for the cell fill. Omit to follow the theme.  |
-| `min_label_value` | number | `5`     | Panels below this many watts show no label. `0` labels all.     |
+| `min_label_value` | number | `5`     | Floor for labels and the producing count. `0` labels all.       |
 | `w_decimals`      | number | `0`     | Decimal places while the total reads in watts.                  |
 | `kw_decimals`     | number | `1`     | Decimal places once it reads in kilowatts.                      |
 
@@ -127,6 +127,10 @@ Panels below `min_label_value` watts (5 by default) show their shading and no
 number. A panel trickling a watt or two at dusk says nothing worth reading, and
 eighteen near-zero labels is noise. Set it to `0` to label everything. Bank
 totals and hover text always show the real value regardless.
+
+The same floor decides the `n/N producing` count in the bank header, so the
+header can't claim 9/9 while a third of the cells sit blank. A panel making
+nothing at all is never counted, even at a floor of `0`.
 
 Two things happen automatically, because a card can land in a stack, a section
 or a popup and can't know its own width:

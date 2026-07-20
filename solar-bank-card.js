@@ -9,11 +9,11 @@
  * Dependency-free plain custom element - no Lit, no build step.
  */
 
-const CARD_VERSION = "1.11.0";
+const CARD_VERSION = "1.12.0";
 console.info(`%c SOLAR-BANK-CARD ${CARD_VERSION} `, "background:#f6a800;color:#000");
 
 const DEFAULT_MAX = 300; // W per panel at full output
-const IDLE_W = 1; // below this a panel counts as asleep
+const IDLE_W = 1; // a panel below this is asleep, whatever the label floor says
 
 // Decimal option names and defaults deliberately match power-flow-card-plus, so
 // a dashboard carrying both cards can be made to agree by copying the values
@@ -320,7 +320,11 @@ class SolarBankCard extends HTMLElement {
         }
         cell.classList.remove("dead");
         sum += w;
-        if (w >= IDLE_W) live += 1;
+        // "Producing" uses the same floor as the labels, so the header can't
+        // claim 9/9 while a third of the cells sit blank. IDLE_W is the hard
+        // floor underneath it: at a label floor of 0, a panel making nothing
+        // is still not producing.
+        if (w >= Math.max(this._minLabel, IDLE_W)) live += 1;
         // Opacity carries the magnitude; the hue stays the theme's active
         // colour so this reads correctly in light and dark themes.
         const frac = Math.max(0, Math.min(1, w / max));
